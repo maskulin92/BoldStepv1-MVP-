@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "hermes": "node hermes/agent.mjs --once",
+    "hermes:watch": "node hermes/agent.mjs",
     "typecheck": "tsc --noEmit",
     "hash": "node scripts/hash.mjs"
   },

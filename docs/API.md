@@ -699,9 +699,11 @@ a CRM export shouldn't reject the whole batch.
 
 ## Webhooks
 
-Registration is live now; **outbound delivery ships in Phase 2**. The payload
-shape and signature scheme below are already fixed, so you can build against
-them today.
+Registration is live now; **delivery is live in Phase 2** — set
+`WEBHOOK_DISPATCH_ENABLED=true` in the app's environment and registered hooks
+are delivered as they happen. With the flag unset, events are recorded but not
+sent. The payload shape and signature scheme are fixed, so you can build
+against them today.
 
 #### `POST /api/integrations/webhooks/register`
 
@@ -717,7 +719,7 @@ them today.
     "event": "action.executed",
     "signing_secret": "b3f1…",
     "dispatch_enabled": false,
-    "note": "Registered. Events are recorded but not yet delivered — outbound dispatch lands in Phase 2."
+    "note": "Registered. Set WEBHOOK_DISPATCH_ENABLED=true in the environment to deliver events."
   }
 }
 ```
@@ -730,7 +732,9 @@ them today.
 
 **Delivery.** `POST` with headers `X-Boldstep-Event` and
 `X-Boldstep-Signature: sha256=<hmac>`, where the HMAC is SHA-256 over the raw
-body using your signing secret.
+body using your signing secret. Failed deliveries retry with backoff
+(1s / 5s / 30s, 10s timeout each). A hook that accumulates 10 consecutive
+failures is disabled; re-register to re-enable it.
 
 ```json
 { "event": "action.executed", "delivered_at": "2026-08-16T12:00:00.000Z", "data": { } }
@@ -748,6 +752,32 @@ function verify(rawBody, header, secret) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 ```
+
+---
+
+## The Hermes agent (Phase 2)
+
+`hermes/agent.mjs` is the background process from the brief. It uses only the
+REST API above — the same surface any integration gets — authenticated with
+`HERMES_API_KEY`. One cycle:
+
+1. `POST /api/meta/sync` for every client
+2. analyse the last 7 days per campaign (GLM 5.3 with `GLM_API_KEY`, or a
+   deterministic local heuristic without it)
+3. `POST /api/approvals` for each worthwhile suggestion — which also sends the
+   Telegram notification with the approval link
+4. `POST /api/hermes/execute` only when `auto_execute` is enabled in Hermes
+   settings
+
+```bash
+npm run hermes         # one cycle now
+npm run hermes:watch   # scheduled — honours the dashboard frequency (6h/12h/24h)
+```
+
+Environment: `HERMES_API_KEY` (required, same value as the app's), 
+`BOLDSTEP_API_URL` (default `http://localhost:3000`),
+`HERMES_INTERVAL_HOURS` (0 = use the dashboard frequency),
+`GLM_API_KEY` / `GLM_API_BASE` / `GLM_MODEL` for real model analysis.
 
 ---
 

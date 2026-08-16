@@ -50,6 +50,6 @@ export const POST = withErrorHandling(async (request: Request) => {
     dispatch_enabled: WEBHOOK_DISPATCH_ENABLED,
     note: WEBHOOK_DISPATCH_ENABLED
       ? undefined
-      : 'Registered. Events are recorded but not yet delivered — outbound dispatch lands in Phase 2.',
+      : 'Registered. Set WEBHOOK_DISPATCH_ENABLED=true in the environment to deliver events.',
   });
 });

@@ -826,3 +826,18 @@ export async function listWebhooks(ownerId: string): Promise<Webhook[]> {
   const snapshot = await db.collection(COLLECTIONS.webhooks).where('owner_id', '==', ownerId).get();
   return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Webhook, 'id'>) }));
 }
+
+/** Patches delivery bookkeeping (failure_count, last_triggered_at, active). */
+export async function updateWebhook(
+  webhookId: string,
+  patch: Partial<Pick<Webhook, 'active' | 'failure_count' | 'last_triggered_at'>>,
+): Promise<void> {
+  const db = getDb();
+  if (!db) {
+    const store = mockStore();
+    const index = store.webhooks.findIndex((w) => w.id === webhookId);
+    if (index !== -1) store.webhooks[index] = { ...store.webhooks[index], ...patch };
+    return;
+  }
+  await db.collection(COLLECTIONS.webhooks).doc(webhookId).set(clean(patch as Doc), { merge: true });
+}

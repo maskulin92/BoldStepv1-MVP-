@@ -258,6 +258,57 @@ chat panel is useful before the agent exists.
 
 ---
 
+## Phase 2: Hermes agent + webhook delivery
+
+Phase 2 turns the Phase 1 foundations on:
+
+### Hermes agent (`hermes/agent.mjs`)
+
+A standalone Node.js process, separate from the app, that talks to it over REST
+only — the same API any integration uses. Each cycle it:
+
+1. pulls fresh Meta insights for every client (`POST /api/meta/sync`)
+2. analyses the last 7 days per campaign (GLM 5.3 when `GLM_API_KEY` is set; a
+   deterministic local heuristic otherwise — CPL up ≥40% suggests pause, down
+   ≥25% suggests a 20% scale)
+3. files worthwhile suggestions as pending actions (`POST /api/approvals`) —
+   which sends the Telegram approval notification
+4. auto-executes them only if `auto_execute` is on in Hermes settings
+
+The schedule honours the frequency set in the dashboard's Hermes settings
+(6h / 12h / 24h); `HERMES_INTERVAL_HOURS` overrides it.
+
+```bash
+# one cycle now (great for testing)
+npm run hermes
+
+# scheduled, honours dashboard frequency
+npm run hermes:watch
+```
+
+Both need `HERMES_API_KEY` in the agent's environment — the same value the app
+has in `.env.local` (see `.env.example` for how to generate it).
+
+### Webhook delivery
+
+Set `WEBHOOK_DISPATCH_ENABLED=true` and registered webhooks are actually
+delivered: HMAC-SHA256-signed POSTs (`X-Boldstep-Signature: sha256=…`) with
+exponential-backoff retries (1s / 5s / 30s), a 10s delivery timeout, and
+per-hook failure tracking. A hook that accumulates 10 consecutive failures is
+disabled so a dead endpoint cannot stall the pipeline; re-register or set
+`active` back to true to re-enable. With the flag unset, events are recorded
+but not sent, exactly as in Phase 1.
+
+### Still out of scope
+
+- **Real Meta Ads pulling** — works the moment `META_ACCESS_TOKEN` is set; the
+  agent already calls the same sync endpoint.
+- **CRM connectors** (Pipedrive, HubSpot) — the sync endpoints are live; the
+  connectors themselves are Phase 2b.
+- **Video editing** (Runway API), **full OAuth2**, Google/TikTok Ads — Phase 3.
+
+---
+
 ## Commands
 
 | Command | What it does |
@@ -265,6 +316,8 @@ chat panel is useful before the agent exists.
 | `npm run dev` | Development server on :3000 |
 | `npm run build` | Production build |
 | `npm start` | Serve the production build |
+| `npm run hermes` | Hermes agent — one analysis cycle now |
+| `npm run hermes:watch` | Hermes agent — scheduled cycles |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run lint` | ESLint |
 | `npm run hash -- --secrets` | Generate JWT/encryption/Hermes secrets |
