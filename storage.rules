@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// ============================================================================
+// Boldstep — Cloud Storage rules (baseline)
+//
+// Creatives and generated reports are written by the Admin SDK and handed out
+// as time-limited signed URLs (7 days) through /api/creatives/download/... and
+// /api/reports/download/... . Nothing needs direct browser access to the
+// bucket, so everything is denied here — a signed URL bypasses these rules by
+// design, which is exactly the access model we want.
+//
+// Deploy:  firebase deploy --only storage
+// ============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

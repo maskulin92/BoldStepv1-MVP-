@@ -1,0 +1,44 @@
+{
+  "name": "boldstep",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Boldstep — AI-Powered Multi-Client Meta Ads Management System",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "hash": "node scripts/hash.mjs"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "firebase": "^11.1.0",
+    "firebase-admin": "^13.0.2",
+    "jose": "^5.9.6",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
+    "lucide-react": "^0.469.0",
+    "next": "15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.15.0",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.1.6",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}

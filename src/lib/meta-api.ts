@@ -1,0 +1,372 @@
+import 'server-only';
+import { env } from './env';
+import { decryptToken } from './auth';
+import { deriveRates, round, seededRandom, toDateKey, daysAgo, dateRangeKeys } from './utils';
+import { insightId } from './collections';
+import type {
+  AdSet,
+  Campaign,
+  Client,
+  DailyInsight,
+  MetaExecutionResult,
+  PendingAction,
+} from '@/types';
+
+/**
+ * Meta Graph API wrapper.
+ *
+ * Phase 1 does not run the daily pull — Hermes does that on a cron and POSTs
+ * results to /api/meta/sync. What lives here is the wrapper those calls share,
+ * plus the mock branch that keeps every screen populated until a real token
+ * exists (SECTION 10 of the brief).
+ */
+
+const GRAPH_BASE = 'https://graph.facebook.com';
+
+export interface MetaCallContext {
+  accessToken: string | null;
+  adAccountId: string | null;
+}
+
+/** Per-client token if stored, otherwise the account-wide token from .env. */
+export function resolveMetaContext(client?: Client | null): MetaCallContext {
+  const clientToken = client?.access_token_encrypted
+    ? decryptToken(client.access_token_encrypted)
+    : null;
+  return {
+    accessToken: clientToken ?? env.meta.accessToken ?? null,
+    adAccountId: client?.ad_account_id ?? env.meta.adAccountId ?? null,
+  };
+}
+
+export function isMetaLive(context: MetaCallContext): boolean {
+  return Boolean(context.accessToken && context.adAccountId);
+}
+
+async function graphRequest<T>(
+  path: string,
+  accessToken: string,
+  params: Record<string, string> = {},
+): Promise<T> {
+  const url = new URL(`${GRAPH_BASE}/${env.meta.apiVersion}/${path}`);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  url.searchParams.set('access_token', accessToken);
+
+  const response = await fetch(url, { cache: 'no-store' });
+  const body = (await response.json()) as T & { error?: { message?: string; code?: number } };
+
+  if (!response.ok || body?.error) {
+    throw new Error(
+      `Meta Graph API error (${response.status}): ${body?.error?.message ?? 'unknown error'}`,
+    );
+  }
+  return body;
+}
+
+/* --------------------------------------------------------- campaigns */
+
+interface MetaCampaignRow {
+  id: string;
+  name: string;
+  objective: string;
+  status: string;
+  daily_budget?: string;
+  created_time?: string;
+}
+
+export async function fetchCampaigns(
+  context: MetaCallContext,
+  clientId: string,
+): Promise<Campaign[]> {
+  if (!isMetaLive(context)) return [];
+
+  const body = await graphRequest<{ data: MetaCampaignRow[] }>(
+    `${context.adAccountId}/campaigns`,
+    context.accessToken!,
+    { fields: 'id,name,objective,status,daily_budget,created_time', limit: '100' },
+  );
+
+  const now = new Date().toISOString();
+  return body.data.map((row) => ({
+    id: row.id,
+    client_id: clientId,
+    name: row.name,
+    objective: mapObjective(row.objective),
+    status: mapCampaignStatus(row.status),
+    // Meta returns budgets in the account's minor currency unit (sen).
+    budget_daily: row.daily_budget ? round(Number(row.daily_budget) / 100, 2) : 0,
+    created_at: row.created_time ?? now,
+    last_synced: now,
+    meta_campaign_id: row.id,
+  }));
+}
+
+interface MetaAdSetRow {
+  id: string;
+  name: string;
+  campaign_id: string;
+  daily_budget?: string;
+  status: string;
+  created_time?: string;
+  targeting?: Record<string, unknown>;
+}
+
+export async function fetchAdSets(context: MetaCallContext, clientId: string): Promise<AdSet[]> {
+  if (!isMetaLive(context)) return [];
+
+  const body = await graphRequest<{ data: MetaAdSetRow[] }>(
+    `${context.adAccountId}/adsets`,
+    context.accessToken!,
+    { fields: 'id,name,campaign_id,daily_budget,status,created_time,targeting', limit: '200' },
+  );
+
+  const now = new Date().toISOString();
+  return body.data.map((row) => {
+    const targeting = (row.targeting ?? {}) as {
+      age_min?: number;
+      age_max?: number;
+      genders?: number[];
+      geo_locations?: { cities?: { name: string }[]; countries?: string[] };
+      flexible_spec?: { interests?: { name: string }[] }[];
+    };
+    return {
+      id: row.id,
+      client_id: clientId,
+      campaign_id: row.campaign_id,
+      name: row.name,
+      daily_budget: row.daily_budget ? round(Number(row.daily_budget) / 100, 2) : 0,
+      targeting: {
+        age_min: targeting.age_min ?? 18,
+        age_max: targeting.age_max ?? 65,
+        genders: (targeting.genders ?? []).map((g) => (g === 1 ? 'male' : 'female')),
+        locations: [
+          ...(targeting.geo_locations?.cities?.map((c) => c.name) ?? []),
+          ...(targeting.geo_locations?.countries ?? []),
+        ],
+        interests: targeting.flexible_spec?.[0]?.interests?.map((i) => i.name) ?? [],
+      },
+      status: row.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED',
+      created_at: row.created_time ?? now,
+      meta_adset_id: row.id,
+    };
+  });
+}
+
+/* ----------------------------------------------------------- insights */
+
+interface MetaInsightRow {
+  campaign_id: string;
+  campaign_name: string;
+  date_start: string;
+  spend?: string;
+  impressions?: string;
+  clicks?: string;
+  actions?: { action_type: string; value: string }[];
+}
+
+/**
+ * The one function the brief calls out by name. Returns mock rows whenever
+ * credentials are missing, real Graph API rows otherwise — identical shape
+ * either way, so nothing downstream branches on it.
+ */
+export async function fetchInsights(options: {
+  context: MetaCallContext;
+  clientId: string;
+  startDate: string;
+  endDate: string;
+  campaigns: Campaign[];
+}): Promise<DailyInsight[]> {
+  const { context, clientId, startDate, endDate, campaigns } = options;
+
+  if (!isMetaLive(context)) {
+    return mockInsights({ clientId, startDate, endDate, campaigns });
+  }
+
+  const body = await graphRequest<{ data: MetaInsightRow[] }>(
+    `${context.adAccountId}/insights`,
+    context.accessToken!,
+    {
+      level: 'campaign',
+      time_increment: '1',
+      time_range: JSON.stringify({ since: startDate, until: endDate }),
+      fields: 'campaign_id,campaign_name,spend,impressions,clicks,actions',
+      limit: '500',
+    },
+  );
+
+  const now = new Date().toISOString();
+  return body.data.map((row) => {
+    const totals = {
+      spend: Number(row.spend ?? 0),
+      impressions: Number(row.impressions ?? 0),
+      clicks: Number(row.clicks ?? 0),
+      leads: countAction(row.actions, ['lead', 'onsite_conversion.lead_grouped']),
+      conversions: countAction(row.actions, ['purchase', 'offsite_conversion.fb_pixel_purchase']),
+    };
+    return {
+      id: insightId(row.date_start, row.campaign_id),
+      client_id: clientId,
+      campaign_id: row.campaign_id,
+      campaign_name: row.campaign_name,
+      date: row.date_start,
+      synced_at: now,
+      ...deriveRates(totals),
+      by_adset: {},
+    };
+  });
+}
+
+function countAction(
+  actions: { action_type: string; value: string }[] | undefined,
+  types: string[],
+): number {
+  if (!actions) return 0;
+  return actions
+    .filter((a) => types.includes(a.action_type))
+    .reduce((sum, a) => sum + Number(a.value || 0), 0);
+}
+
+/** Generates believable rows for a date range without touching the network. */
+function mockInsights(options: {
+  clientId: string;
+  startDate: string;
+  endDate: string;
+  campaigns: Campaign[];
+}): DailyInsight[] {
+  const { clientId, startDate, endDate, campaigns } = options;
+  const rows: DailyInsight[] = [];
+  const now = new Date().toISOString();
+
+  for (const campaign of campaigns) {
+    if (campaign.status === 'ARCHIVED') continue;
+    for (const date of dateRangeKeys(startDate, endDate)) {
+      const rand = seededRandom(`${campaign.id}-${date}`);
+      const spend = round(campaign.budget_daily * (0.82 + rand() * 0.28), 2);
+      const cpl = round(18 + rand() * 40, 2);
+      const leads = Math.max(0, Math.round(spend / Math.max(cpl, 1)));
+      const clicks = Math.round(leads * (5 + rand() * 4) + rand() * 8);
+      const impressions = Math.round(clicks * (45 + rand() * 30));
+      const totals = {
+        spend,
+        impressions,
+        clicks,
+        leads,
+        conversions: Math.round(leads * (0.2 + rand() * 0.25)),
+      };
+      rows.push({
+        id: insightId(date, campaign.id),
+        client_id: clientId,
+        campaign_id: campaign.id,
+        campaign_name: campaign.name,
+        date,
+        synced_at: now,
+        ...deriveRates(totals),
+        by_adset: {},
+      });
+    }
+  }
+  return rows;
+}
+
+/* ---------------------------------------------------------- execution */
+
+/**
+ * Applies an approved action to Meta. In mock mode it reports exactly what it
+ * *would* have sent, so the approval workflow is testable end-to-end.
+ */
+export async function executeAction(
+  action: PendingAction,
+  context: MetaCallContext,
+  overrides: Record<string, number | string> = {},
+): Promise<MetaExecutionResult> {
+  const target = action.adset_id ?? action.campaign_id;
+  const payload = buildExecutionPayload(action, overrides);
+  const executedAt = new Date().toISOString();
+
+  if (!isMetaLive(context)) {
+    return {
+      ok: true,
+      mode: 'mock',
+      message: `[MOCK] Would POST to Meta object ${target} with ${JSON.stringify(payload)}. Set META_ACCESS_TOKEN in .env.local to execute for real.`,
+      applied: payload,
+      executed_at: executedAt,
+    };
+  }
+
+  try {
+    const url = new URL(`${GRAPH_BASE}/${env.meta.apiVersion}/${target}`);
+    const form = new URLSearchParams();
+    for (const [key, value] of Object.entries(payload)) form.set(key, String(value));
+    form.set('access_token', context.accessToken!);
+
+    const response = await fetch(url, { method: 'POST', body: form, cache: 'no-store' });
+    const body = (await response.json()) as { error?: { message?: string } };
+
+    if (!response.ok || body?.error) {
+      return {
+        ok: false,
+        mode: 'live',
+        message: body?.error?.message ?? `Meta returned HTTP ${response.status}`,
+        applied: payload,
+        executed_at: executedAt,
+      };
+    }
+
+    return {
+      ok: true,
+      mode: 'live',
+      message: `Applied ${action.action_type} to ${target}.`,
+      applied: payload,
+      executed_at: executedAt,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      mode: 'live',
+      message: error instanceof Error ? error.message : 'Unknown Meta API failure',
+      applied: payload,
+      executed_at: executedAt,
+    };
+  }
+}
+
+function buildExecutionPayload(
+  action: PendingAction,
+  overrides: Record<string, number | string>,
+): Record<string, string | number> {
+  switch (action.action_type) {
+    case 'pause':
+      return { status: 'PAUSED' };
+    case 'resume':
+      return { status: 'ACTIVE' };
+    case 'budget_change': {
+      const budget = Number(overrides.budget ?? action.metadata.proposed_budget ?? 0);
+      // Meta expects the minor currency unit.
+      return { daily_budget: Math.round(budget * 100) };
+    }
+    case 'analysis':
+    default:
+      return { note: 'analysis-only, nothing sent to Meta' };
+  }
+}
+
+/* ------------------------------------------------------------ mapping */
+
+function mapObjective(objective: string): Campaign['objective'] {
+  const value = objective.toUpperCase();
+  if (value.includes('LEAD')) return 'LEAD_GENERATION';
+  if (value.includes('CONVERSION') || value.includes('SALES')) return 'CONVERSIONS';
+  return 'TRAFFIC';
+}
+
+function mapCampaignStatus(status: string): Campaign['status'] {
+  const value = status.toUpperCase();
+  if (value === 'ACTIVE') return 'ACTIVE';
+  if (value === 'ARCHIVED' || value === 'DELETED') return 'ARCHIVED';
+  return 'PAUSED';
+}
+
+/** Used by /api/meta/sync when it needs a default window. */
+export function defaultSyncWindow(days = 7): { startDate: string; endDate: string } {
+  return { startDate: toDateKey(daysAgo(days - 1)), endDate: toDateKey(new Date()) };
+}

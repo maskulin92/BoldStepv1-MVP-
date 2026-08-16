@@ -1,0 +1,73 @@
+rules_version = '2';
+
+// ============================================================================
+// Boldstep — Firestore security rules (baseline)
+//
+// The dashboard NEVER reads Firestore from the browser. Every read and write
+// goes through the Next.js API, which authenticates the caller and scopes the
+// query server-side. The Admin SDK bypasses these rules entirely, so the
+// safest baseline is to deny all direct client access.
+//
+// If Phase 2 adds realtime listeners in the browser, replace the deny-all
+// block with the commented rules below and mint Firebase custom tokens whose
+// claims carry `role` and `client_id`.
+//
+// Deploy:  firebase deploy --only firestore:rules
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Default: nothing is reachable from a browser SDK ----
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---- Phase 2 (realtime listeners) -------------------------------------
+    // function signedIn()      { return request.auth != null; }
+    // function isOwner()       { return signedIn() && request.auth.token.role == 'owner'; }
+    // function ownsClient(cid) { return isOwner() || (signedIn() && request.auth.token.client_id == cid); }
+    //
+    // match /clients/{clientId} {
+    //   // Never expose the PIN hash or the encrypted Meta token to a browser.
+    //   allow read: if ownsClient(clientId)
+    //               && !('access_pin_hash' in resource.data)
+    //               && !('access_token_encrypted' in resource.data);
+    //   allow write: if isOwner();
+    // }
+    //
+    // match /campaigns/{clientId}/campaign_items/{campaignId} {
+    //   allow read:  if ownsClient(clientId);
+    //   allow write: if isOwner();
+    // }
+    //
+    // match /ad_sets/{clientId}/adset_items/{adSetId} {
+    //   allow read:  if ownsClient(clientId);
+    //   allow write: if isOwner();
+    // }
+    //
+    // match /daily_insights/{clientId}/insight_items/{insightId} {
+    //   allow read:  if ownsClient(clientId);
+    //   allow write: if isOwner();
+    // }
+    //
+    // match /creatives/{clientId}/creative_items/{creativeId} {
+    //   allow read:  if ownsClient(clientId);
+    //   allow write: if isOwner();
+    // }
+    //
+    // match /manual_entries/{clientId}/entry_items/{entryId} {
+    //   allow read:  if ownsClient(clientId);
+    //   allow write: if isOwner();
+    // }
+    //
+    // // Owner-only areas — never readable by a client session.
+    // match /pending_actions/{clientId}/action_items/{actionId} { allow read, write: if isOwner(); }
+    // match /hermes_memory/{doc}                               { allow read, write: if isOwner(); }
+    //
+    // // Credentials stay server-side, always.
+    // match /auth_users/{userId} { allow read, write: if false; }
+    // match /api_keys/{keyId}    { allow read, write: if false; }
+    // match /webhooks/{hookId}   { allow read, write: if false; }
+  }
+}

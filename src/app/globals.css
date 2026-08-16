@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --brand-blue: #1e3a8a;
+    --brand-cream: #f5f3f0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface text-cream-100 antialiased;
+    /* Subtle depth so large dark areas don't read as flat black-blue. */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30, 58, 138, 0.55), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(19, 35, 82, 0.7), transparent);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    @apply bg-navy-500/40 text-cream-50;
+  }
+
+  /* Dark-appropriate scrollbars — the default light ones look broken here. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(245, 243, 240, 0.2) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(245, 243, 240, 0.18);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(245, 243, 240, 0.3);
+  }
+
+  input,
+  select,
+  textarea {
+    @apply bg-navy-950/60 border border-surface-border rounded-lg px-3 py-2 text-cream-100
+           placeholder:text-cream-100/35 outline-none transition;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply border-accent-info/60 ring-2 ring-accent-info/20;
+  }
+
+  /* The native picker indicator is near-invisible on a dark field. */
+  input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(0.85);
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent-info/60 ring-offset-2 ring-offset-surface;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-surface-border bg-navy-900/50 backdrop-blur-sm shadow-card;
+  }
+
+  .card-hover {
+    @apply transition hover:border-cream-100/25 hover:bg-navy-900/70;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+           transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-cream-100 text-navy-900 hover:bg-cream-50 active:bg-cream-200;
+  }
+
+  .btn-secondary {
+    @apply btn border border-surface-border bg-navy-800/60 text-cream-100 hover:bg-navy-700/60;
+  }
+
+  .btn-ghost {
+    @apply btn text-cream-100/70 hover:bg-cream-100/10 hover:text-cream-100;
+  }
+
+  .btn-danger {
+    @apply btn border border-accent-danger/40 bg-accent-danger/10 text-accent-danger
+           hover:bg-accent-danger/20;
+  }
+
+  .btn-success {
+    @apply btn bg-accent-success/90 text-navy-950 hover:bg-accent-success;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-cream-100/55;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto rounded-xl border border-surface-border;
+  }
+
+  .th {
+    @apply whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase
+           tracking-wide text-cream-100/55;
+  }
+
+  .td {
+    @apply whitespace-nowrap px-4 py-3 text-sm text-cream-100/90;
+  }
+}

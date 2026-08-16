@@ -1,0 +1,44 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+/dist
+
+# misc
+.DS_Store
+*.pem
+Thumbs.db
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — NEVER commit real credentials
+.env
+.env.*
+!.env.example
+
+# firebase service account keys
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# local scratch
+/tmp
+/.idea
+/.vscode

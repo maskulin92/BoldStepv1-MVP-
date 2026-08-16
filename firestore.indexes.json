@@ -1,0 +1,51 @@
+{
+  "//": "Boldstep composite indexes. Deploy: firebase deploy --only firestore:indexes",
+  "indexes": [
+    {
+      "//": "listInsights() filters by campaign_id and range-filters date.",
+      "collectionGroup": "insight_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campaign_id", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "//": "getPendingAction() / listPendingActions() across every client.",
+      "collectionGroup": "action_items",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "Owner dashboard: pending actions per client, newest first.",
+      "collectionGroup": "action_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "getCreative() resolves a creative id without knowing its client.",
+      "collectionGroup": "creative_items",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "id", "order": "ASCENDING" },
+        { "fieldPath": "uploaded_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "listAdSets() filtered to one campaign.",
+      "collectionGroup": "adset_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "campaign_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
