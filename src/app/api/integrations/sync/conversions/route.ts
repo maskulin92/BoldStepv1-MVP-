@@ -46,6 +46,8 @@ export const POST = withErrorHandling(async (request: Request) => {
     entered_by: 'fadhil',
     created_at: now,
     date: conversion.date,
+    // API-key ingestion is trusted like an owner entry.
+    status: 'approved' as const,
   }));
 
   await createManualEntries(entries);

@@ -388,6 +388,9 @@ export function buildMockCreatives(): Creative[] {
       url_expires_at: expires.toISOString(),
       uploaded_at: uploaded.toISOString(),
       size_bytes: seed.type === 'image' ? 480_000 + index * 90_000 : 8_400_000 + index * 1_200_000,
+      status: 'approved' as const,
+      uploaded_by: 'fadhil' as const,
+      reviewed_at: uploaded.toISOString(),
     };
   });
 }
@@ -418,8 +421,25 @@ export function buildMockManualEntries(): ManualEntry[] {
         entered_by: 'fadhil',
         created_at: date.toISOString(),
         date: toDateKey(date),
+        status: 'approved',
       });
     }
+  });
+
+  // A client-submitted entry awaiting review, so the approval queue is
+  // demonstrable before any real client has submitted anything.
+  const submittedAt = daysAgo(0, new Date(new Date().setHours(11, 5, 0, 0)));
+  entries.push({
+    id: 'man-client-0',
+    client_id: 'nova-dental',
+    campaign_id: 'cmp-nova-implant',
+    metric_type: 'leads_closed',
+    value: 3,
+    notes: '3 walk-in cases from the implant workshop — not captured in Meta',
+    entered_by: 'client',
+    created_at: submittedAt.toISOString(),
+    date: toDateKey(submittedAt),
+    status: 'pending_approval',
   });
 
   return entries;

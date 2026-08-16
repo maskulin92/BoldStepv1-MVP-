@@ -1,5 +1,5 @@
 import { ApiError, created, withErrorHandling } from '@/lib/api-response';
-import { assertClientAccess, enforceRateLimit, requireOwner, requirePermission } from '@/lib/api-auth';
+import { assertClientAccess, enforceRateLimit, requireCaller, requirePermission } from '@/lib/api-auth';
 import { createCreative, getClient } from '@/lib/firestore';
 import { creativeStoragePath, uploadFile } from '@/lib/storage';
 import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES } from '@/constants/form-options';
@@ -16,9 +16,13 @@ export const maxDuration = 60;
  *   file, client_id, campaign_id, adset_id?
  *
  * Stores the file and returns a signed URL that expires in 7 days.
+ *
+ * Owner uploads publish immediately. Client uploads land in the review queue
+ * (status: pending_review) and only appear in the client library and Top
+ * Performing Ads once approved at POST /api/creatives/review/[id].
  */
 export const POST = withErrorHandling(async (request: Request) => {
-  const caller = await requireOwner(request);
+  const caller = await requireCaller(request);
   requirePermission(caller, 'write');
   enforceRateLimit(request, caller, 30, 'creatives-upload');
 
@@ -82,6 +86,9 @@ export const POST = withErrorHandling(async (request: Request) => {
     url_expires_at: stored.url_expires_at,
     uploaded_at: new Date().toISOString(),
     size_bytes: file.size,
+    // Owner uploads publish immediately; client uploads await review.
+    status: caller.role === 'owner' ? 'approved' : 'pending_review',
+    uploaded_by: caller.role === 'owner' ? 'fadhil' : 'client',
   };
 
   await createCreative(creative);
@@ -92,5 +99,8 @@ export const POST = withErrorHandling(async (request: Request) => {
     creative,
     download_url: creative.download_url,
     expires_at: creative.url_expires_at,
+    ...(caller.role === 'owner'
+      ? {}
+      : { note: 'Uploaded for review — it appears in the library once approved.' }),
   });
 });

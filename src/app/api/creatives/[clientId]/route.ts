@@ -17,10 +17,15 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
 
   const url = new URL(request.url);
   const campaignId = url.searchParams.get('campaign_id');
+  // A client session only ever sees approved creatives; the owner can ask for
+  // any status (the review queue asks for pending_review).
+  const requested = url.searchParams.get('status');
+  const statusFilter =
+    caller.role === 'owner' && requested ? (requested as 'pending_review' | 'approved' | 'rejected') : 'approved';
   const page = Number(url.searchParams.get('page') ?? 1);
   const perPage = Number(url.searchParams.get('per_page') ?? 50);
 
-  const creatives = (await listCreatives(clientId))
+  const creatives = (await listCreatives(clientId, { status: statusFilter }))
     .filter((creative) => !campaignId || creative.campaign_id === campaignId)
     .map((creative) => ({
       ...creative,

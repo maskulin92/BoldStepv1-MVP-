@@ -530,15 +530,22 @@ export async function updatePendingAction(
 
 export async function listManualEntries(
   clientId: string,
-  options: { date?: string; startDate?: string; endDate?: string } = {},
+  options: {
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    /** Only entries whose numbers count toward metrics. Default: true. */
+    approvedOnly?: boolean;
+  } = {},
 ): Promise<ManualEntry[]> {
-  const { date, startDate, endDate } = options;
+  const { date, startDate, endDate, approvedOnly = true } = options;
   const db = getDb();
 
   const matches = (entry: ManualEntry) => {
-    if (date) return entry.date === date;
+    if (date && entry.date !== date) return false;
     if (startDate && entry.date < startDate) return false;
     if (endDate && entry.date > endDate) return false;
+    if (approvedOnly && entry.status !== 'approved') return false;
     return true;
   };
 
@@ -581,13 +588,58 @@ export async function createManualEntries(entries: ManualEntry[]): Promise<Manua
   return entries;
 }
 
-/* ---------------------------------------------------------- creatives */
+export async function getManualEntry(entryId: string): Promise<ManualEntry | null> {
+  const db = getDb();
+  if (!db) return mockStore().manualEntries.find((e) => e.id === entryId) ?? null;
 
-export async function listCreatives(clientId: string): Promise<Creative[]> {
+  const snapshot = await db
+    .collectionGroup(COLLECTIONS.entryItems)
+    .where('id', '==', entryId)
+    .limit(1)
+    .get();
+  if (snapshot.empty) return null;
+  const doc = snapshot.docs[0];
+  return { id: doc.id, ...(doc.data() as Omit<ManualEntry, 'id'>) };
+}
+
+export async function updateManualEntry(
+  entryId: string,
+  patch: Partial<Pick<ManualEntry, 'status' | 'review_note' | 'reviewed_by' | 'reviewed_at'>>,
+): Promise<ManualEntry | null> {
   const db = getDb();
   if (!db) {
+    const store = mockStore();
+    const index = store.manualEntries.findIndex((e) => e.id === entryId);
+    if (index === -1) return null;
+    store.manualEntries[index] = { ...store.manualEntries[index], ...patch };
+    return store.manualEntries[index];
+  }
+
+  const snapshot = await db
+    .collectionGroup(COLLECTIONS.entryItems)
+    .where('id', '==', entryId)
+    .limit(1)
+    .get();
+  if (snapshot.empty) return null;
+  const doc = snapshot.docs[0];
+  await doc.ref.set(clean(patch as Doc), { merge: true });
+  const updated = await doc.ref.get();
+  return { id: updated.id, ...(updated.data() as Omit<ManualEntry, 'id'>) };
+}
+
+/* ---------------------------------------------------------- creatives */
+
+export async function listCreatives(
+  clientId: string,
+  options: { status?: Creative['status'] } = {},
+): Promise<Creative[]> {
+  const { status } = options;
+  const db = getDb();
+  const matches = (creative: Creative) => !status || creative.status === status;
+
+  if (!db) {
     return mockStore()
-      .creatives.filter((c) => c.client_id === clientId)
+      .creatives.filter((c) => c.client_id === clientId && matches(c))
       .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at));
   }
 
@@ -598,6 +650,7 @@ export async function listCreatives(clientId: string): Promise<Creative[]> {
     .get();
   return snapshot.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Creative, 'id'>) }))
+    .filter(matches)
     .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at));
 }
 
@@ -635,21 +688,25 @@ export async function updateCreative(
   creativeId: string,
   clientId: string,
   patch: Partial<Creative>,
-): Promise<void> {
+): Promise<Creative | null> {
   const db = getDb();
   if (!db) {
     const store = mockStore();
     const index = store.creatives.findIndex((c) => c.id === creativeId);
-    if (index !== -1) store.creatives[index] = { ...store.creatives[index], ...patch };
-    return;
+    if (index === -1) return null;
+    store.creatives[index] = { ...store.creatives[index], ...patch };
+    return store.creatives[index];
   }
 
-  await db
+  const ref = db
     .collection(COLLECTIONS.creatives)
     .doc(clientId)
     .collection(COLLECTIONS.creativeItems)
-    .doc(creativeId)
-    .set(clean(patch as Doc), { merge: true });
+    .doc(creativeId);
+  await ref.set(clean(patch as Doc), { merge: true });
+  const updated = await ref.get();
+  if (!updated.exists) return null;
+  return { id: updated.id, ...(updated.data() as Omit<Creative, 'id'>) };
 }
 
 /* ------------------------------------------------------ hermes memory */

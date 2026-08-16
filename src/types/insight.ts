@@ -23,6 +23,13 @@ export interface DailyInsight extends InsightMetrics {
 
 export type ManualMetricType = 'leads_closed' | 'sales_value' | 'conversion_custom';
 
+/**
+ * Client-submitted entries start as `pending_approval` and only count toward
+ * metrics once approved. Owner-entered entries are approved immediately.
+ * Rejected entries are kept for audit but never aggregated.
+ */
+export type ManualEntryStatus = 'pending_approval' | 'approved' | 'rejected';
+
 /** `manual_entries/{clientId}/{date}/{entryId}` */
 export interface ManualEntry {
   id: string;
@@ -35,6 +42,10 @@ export interface ManualEntry {
   entered_by: 'fadhil' | 'client';
   created_at: string;
   date: string;
+  status: ManualEntryStatus;
+  review_note?: string;
+  reviewed_by?: 'fadhil';
+  reviewed_at?: string;
 }
 
 export interface TrendPoint {

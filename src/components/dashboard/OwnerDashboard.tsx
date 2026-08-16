@@ -17,6 +17,7 @@ import PerformanceMetrics from '@/components/reports/PerformanceMetrics';
 import ExportButtons from '@/components/reports/ExportButtons';
 import PendingApprovals from '@/components/hermes/PendingApprovals';
 import HermesControlPanel from '@/components/hermes/HermesControlPanel';
+import ReviewQueue from '@/components/review/ReviewQueue';
 import CreativeUpload from '@/components/creatives/CreativeUpload';
 import CreativeLibrary from '@/components/creatives/CreativeLibrary';
 import ManualDataForm from '@/components/manual-entry/ManualDataForm';
@@ -204,6 +205,7 @@ function SectionA({
   return (
     <div className="space-y-4">
       <ClientManageBar client={client} onEdit={onEdit} onDeleted={onDeleted} />
+      <ReviewQueue clientId={client.id} />
       <ClientDashboard clientId={client.id} clientName={client.name} embedded />
       <PendingApprovals clientId={client.id} title={`Pending approvals · ${client.name}`} />
     </div>

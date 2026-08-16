@@ -1,5 +1,11 @@
 export type CreativeFileType = 'image' | 'video';
 
+/**
+ * Client-uploaded creatives start as `pending_review` and only appear in the
+ * client-facing library and Top Performing Ads once approved.
+ */
+export type CreativeStatus = 'pending_review' | 'approved' | 'rejected';
+
 /** `creatives/{clientId}/items/{creativeId}` */
 export interface Creative {
   id: string;
@@ -14,6 +20,10 @@ export interface Creative {
   url_expires_at: string;
   uploaded_at: string;
   size_bytes: number;
+  status: CreativeStatus;
+  uploaded_by?: 'fadhil' | 'client';
+  review_note?: string;
+  reviewed_at?: string;
 }
 
 export interface TopPerformingAd {

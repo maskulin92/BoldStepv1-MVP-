@@ -55,6 +55,9 @@ export const POST = withErrorHandling(async (request: Request) => {
         entered_by: 'fadhil',
         created_at: now,
         date: record.date,
+        // API-key ingestion is trusted like an owner entry — the key holder
+        // is already authenticated and permission-checked.
+        status: 'approved',
       });
     }
     if (record.sales_value !== undefined) {
@@ -68,6 +71,7 @@ export const POST = withErrorHandling(async (request: Request) => {
         entered_by: 'fadhil',
         created_at: now,
         date: record.date,
+        status: 'approved',
       });
     }
   }

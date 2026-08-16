@@ -112,6 +112,12 @@ export const manualEntrySchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
+/** Owner decision on a client-submitted entry or creative. */
+export const reviewDecisionSchema = z.object({
+  decision: z.enum(['approved', 'rejected']),
+  note: z.string().max(500).optional(),
+});
+
 export const metaSyncSchema = z.object({
   client_id: z.string().min(1),
   start_date: dateKey.optional(),

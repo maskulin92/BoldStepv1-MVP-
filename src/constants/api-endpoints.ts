@@ -33,10 +33,12 @@ export const API = {
     upload: '/api/creatives/upload',
     list: (clientId: string) => `/api/creatives/${clientId}`,
     download: (creativeId: string) => `/api/creatives/download/${creativeId}`,
+    review: (creativeId: string) => `/api/creatives/review/${creativeId}`,
   },
   manualEntry: {
     create: '/api/manual-entry',
     list: (clientId: string) => `/api/manual-entry/${clientId}`,
+    review: (entryId: string) => `/api/manual-entry/review/${entryId}`,
   },
   reports: {
     pdf: '/api/reports/pdf',

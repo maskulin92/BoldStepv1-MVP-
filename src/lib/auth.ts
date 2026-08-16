@@ -38,7 +38,10 @@ export function signOwnerSession(userId: string, email: string, permissions: Per
 
 export function signClientSession(clientId: string, name: string) {
   return signSession(
-    { sub: clientId, role: 'client', client_id: clientId, email: name, permissions: ['read'] },
+    // `write` here means "propose data", never "publish it" — every client
+    // submission still routes through the owner review queue before it can
+    // touch metrics or the visible library.
+    { sub: clientId, role: 'client', client_id: clientId, email: name, permissions: ['read', 'write'] },
     env.jwt.clientTtl,
   );
 }
