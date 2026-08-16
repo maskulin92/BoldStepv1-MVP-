@@ -17,10 +17,13 @@ export default function ClientManageBar({
   client,
   onEdit,
   onDeleted,
+  extra,
 }: {
   client: PublicClient;
   onEdit: () => void;
   onDeleted: (clientId: string) => void;
+  /** Optional extra control (e.g. "New campaign") rendered with the actions. */
+  extra?: React.ReactNode;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState('');
@@ -79,6 +82,7 @@ export default function ClientManageBar({
         </div>
 
         <div className="flex shrink-0 gap-2">
+          {extra}
           <button type="button" className="btn-secondary" onClick={onEdit}>
             <Pencil className="h-4 w-4" aria-hidden />
             <span className="hidden sm:inline">Edit</span>

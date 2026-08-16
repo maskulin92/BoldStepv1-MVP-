@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, RefreshCw } from 'lucide-react';
+import { Megaphone, Plus, RefreshCw } from 'lucide-react';
 import Navbar from '@/components/common/Navbar';
 import Sidebar, { type OwnerSection } from '@/components/common/Sidebar';
 import ClientSelector from './ClientSelector';
 import ClientDashboard from './ClientDashboard';
 import ClientFormModal from './ClientFormModal';
 import ClientManageBar from './ClientManageBar';
+import CampaignFormModal from './CampaignFormModal';
 import DateRangeSelector from './DateRangeSelector';
 import OverviewCards from './OverviewCards';
 import TrendChart from '@/components/reports/TrendChart';
@@ -43,6 +44,11 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   // null = closed, 'new' = create, otherwise the client being edited.
   const [clientForm, setClientForm] = useState<'new' | PublicClient | null>(null);
+  const [campaignFormOpen, setCampaignFormOpen] = useState(false);
+  const [launchNotice, setLaunchNotice] = useState<{
+    tone: 'success' | 'danger';
+    text: string;
+  } | null>(null);
 
   const clients = useFirestoreList<PublicClient>(API.clients.list);
   const approvals = usePendingApprovals();
@@ -137,6 +143,7 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
               client={activeClient}
               onAdd={() => setClientForm('new')}
               onEdit={() => activeClient && setClientForm(activeClient)}
+              onNewCampaign={() => setCampaignFormOpen(true)}
               onDeleted={(deletedId) => {
                 // Fall back to whichever client is left after the removal.
                 const remaining = managedClients.filter((c) => c.id !== deletedId);
@@ -149,6 +156,7 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
               client={ownerClient}
               highlightActionId={deepLinkAction}
               onApprovalsChanged={() => void approvals.refetch()}
+              onNewCampaign={() => setCampaignFormOpen(true)}
             />
           ) : (
             <HermesControlPanel
@@ -170,6 +178,28 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
           void clients.refetch();
         }}
       />
+
+      <CampaignFormModal
+        open={campaignFormOpen}
+        onClose={() => setCampaignFormOpen(false)}
+        clientId={activeClient?.id ?? null}
+        onSaved={(result) => {
+          setLaunchNotice({
+            tone: result.launch.ok ? 'success' : 'danger',
+            text:
+              result.launch.ok && result.campaign.creative_name
+                ? `Campaign created with creative "${result.campaign.creative_name}". ${result.launch.message}`
+                : result.launch.message,
+          });
+          void clients.refetch();
+        }}
+      />
+
+      {launchNotice ? (
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm">
+          <InlineNotice tone={launchNotice.tone}>{launchNotice.text}</InlineNotice>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -180,11 +210,13 @@ function SectionA({
   client,
   onAdd,
   onEdit,
+  onNewCampaign,
   onDeleted,
 }: {
   client: PublicClient | null;
   onAdd: () => void;
   onEdit: () => void;
+  onNewCampaign: () => void;
   onDeleted: (clientId: string) => void;
 }) {
   if (!client) {
@@ -204,7 +236,17 @@ function SectionA({
 
   return (
     <div className="space-y-4">
-      <ClientManageBar client={client} onEdit={onEdit} onDeleted={onDeleted} />
+      <ClientManageBar
+        client={client}
+        onEdit={onEdit}
+        onDeleted={onDeleted}
+        extra={
+          <button type="button" className="btn-secondary" onClick={onNewCampaign}>
+            <Megaphone className="h-4 w-4" aria-hidden />
+            New campaign
+          </button>
+        }
+      />
       <ReviewQueue clientId={client.id} />
       <ClientDashboard clientId={client.id} clientName={client.name} embedded />
       <PendingApprovals clientId={client.id} title={`Pending approvals · ${client.name}`} />
@@ -218,10 +260,12 @@ function SectionB({
   client,
   highlightActionId,
   onApprovalsChanged,
+  onNewCampaign,
 }: {
   client: PublicClient | null;
   highlightActionId: string | null;
   onApprovalsChanged: () => void;
+  onNewCampaign: () => void;
 }) {
   const [preset, setPreset] = useState<DatePresetValue>('7d');
   const [days, setDays] = useState(7);
@@ -291,6 +335,10 @@ function SectionB({
           }}
         />
         <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn-secondary" onClick={onNewCampaign}>
+            <Megaphone className="h-4 w-4" aria-hidden />
+            New campaign
+          </button>
           <ExportButtons clientId={clientId} range={range} />
           <button type="button" className="btn-secondary" onClick={() => void sync()} disabled={syncing}>
             <RefreshCw className={syncing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} aria-hidden />

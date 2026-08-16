@@ -15,6 +15,13 @@ export interface Campaign {
   created_at: string;
   last_synced: string;
   meta_campaign_id: string;
+  /**
+   * The approved creative attached at launch, if any. Only ever set after the
+   * server has verified the creative exists, belongs to this client and is
+   * approved — the form's dropdown can offer choices, the API decides.
+   */
+  creative_id?: string;
+  creative_name?: string;
 }
 
 export interface AdSetTargeting {

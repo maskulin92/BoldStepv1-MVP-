@@ -42,6 +42,14 @@ export const linkId = z
     'Use 3–48 characters: lowercase letters, numbers and hyphens only',
   );
 
+export const createCampaignSchema = z.object({
+  name: z.string().trim().min(2, 'Campaign name is required').max(120),
+  objective: z.enum(['LEAD_GENERATION', 'CONVERSIONS', 'TRAFFIC']),
+  budget_daily: z.number().positive('Daily budget must be more than zero').max(100_000),
+  /** Optional: an approved creative to attach at launch. */
+  creative_id: z.string().trim().min(1).optional(),
+});
+
 const clientSettingsSchema = z.object({
   notification_enabled: z.boolean().optional(),
   auto_execute: z.boolean().optional(),

@@ -114,6 +114,11 @@ export const env = {
     accessToken: read('META_ACCESS_TOKEN'),
     adAccountId: read('META_AD_ACCOUNT_ID'),
     apiVersion: read('META_API_VERSION') ?? 'v21.0',
+    /** Facebook Page id for ad creative object_story_spec. */
+    pageId: read('META_PAGE_ID'),
+    get appUrl(): string {
+      return read('NEXT_PUBLIC_APP_URL') ?? 'http://localhost:3000';
+    },
     get isConfigured(): boolean {
       return Boolean(read('META_ACCESS_TOKEN'));
     },

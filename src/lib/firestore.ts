@@ -270,8 +270,23 @@ export async function getCampaign(clientId: string, campaignId: string): Promise
   return { id: doc.id, ...(doc.data() as Omit<Campaign, 'id'>) };
 }
 
-export async function upsertCampaigns(clientId: string, campaigns: Campaign[]): Promise<number> {
+export async function createCampaign(campaign: Campaign): Promise<Campaign> {
   const db = getDb();
+  if (!db) {
+    mockStore().campaigns.unshift(campaign);
+    return campaign;
+  }
+
+  const parent = db.collection(COLLECTIONS.campaigns).doc(campaign.client_id);
+  await parent.set({ client_id: campaign.client_id }, { merge: true });
+  await parent
+    .collection(COLLECTIONS.campaignItems)
+    .doc(campaign.id)
+    .set(clean(campaign as unknown as Doc));
+  return campaign;
+}
+
+export async function upsertCampaigns(clientId: string, campaigns: Campaign[]): Promise<number> {  const db = getDb();
   if (!db) {
     const store = mockStore();
     for (const campaign of campaigns) {

@@ -350,6 +350,146 @@ function buildExecutionPayload(
   }
 }
 
+/* ----------------------------------------------------------- launching */
+
+export interface LaunchResult {
+  ok: boolean;
+  mode: 'live' | 'mock';
+  message: string;
+  meta_campaign_id?: string;
+  meta_adset_id?: string;
+  meta_ad_id?: string;
+  creative_attached: boolean;
+}
+
+export interface LaunchInput {
+  name: string;
+  objective: Campaign['objective'];
+  dailyBudget: number;
+  /** Approved creative to run, when one was selected. */
+  creative?: { id: string; file_name: string; storage_path: string };
+}
+
+/**
+ * Creates a campaign on Meta (plus ad set and ad when a creative is given),
+ * or reports exactly what it would have sent in mock mode — same contract as
+ * executeAction, so launch is testable before credentials exist.
+ */
+export async function launchCampaign(
+  context: MetaCallContext,
+  input: LaunchInput,
+): Promise<LaunchResult> {
+  if (!isMetaLive(context)) {
+    const parts = [
+      `name=${input.name}`,
+      `objective=${input.objective}`,
+      `daily_budget=${Math.round(input.dailyBudget * 100)}`,
+      ...(input.creative ? [`creative=${input.creative.file_name} (${input.creative.storage_path})`] : []),
+    ];
+    return {
+      ok: true,
+      mode: 'mock',
+      message: `[MOCK] Would create campaign (${parts.join(', ')}) under ${context.adAccountId ?? 'the ad account'}. Set META_ACCESS_TOKEN in .env.local to launch for real.`,
+      creative_attached: Boolean(input.creative),
+    };
+  }
+
+  try {
+    // 1. Campaign
+    const campaign = await graphPost(`${context.adAccountId}/campaigns`, context.accessToken!, {
+      name: input.name,
+      objective: input.objective,
+      status: 'PAUSED',
+      special_ad_categories: '[]',
+    });
+    const metaCampaignId = String(campaign.id ?? '');
+
+    // 2. Ad set
+    const adSet = await graphPost(`${metaCampaignId}/adsets`, context.accessToken!, {
+      name: `${input.name} — Ad Set`,
+      optimization_goal: input.objective === 'TRAFFIC' ? 'LINK_CLICKS' : 'LEAD_GENERATION',
+      billing_event: 'IMPRESSIONS',
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      daily_budget: String(Math.round(input.dailyBudget * 100)),
+      targeting: JSON.stringify({ geo_locations: { countries: ['MY'] } }),
+      status: 'PAUSED',
+    });
+    const metaAdSetId = String(adSet.id ?? '');
+
+    // 3. Ad with the selected creative (or no ad when none was picked —
+    // the campaign still exists and can be finished in Ads Manager).
+    if (!input.creative) {
+      return {
+        ok: true,
+        mode: 'live',
+        message: `Campaign ${metaCampaignId} created with ad set ${metaAdSetId}. No creative selected — add the ad in Ads Manager.`,
+        meta_campaign_id: metaCampaignId,
+        meta_adset_id: metaAdSetId,
+        creative_attached: false,
+      };
+    }
+
+    const creative = await graphPost(
+      `act_${String(context.adAccountId ?? '').replace(/^act_/, '')}/adcreatives`,
+      context.accessToken!,
+      {
+        name: input.creative.file_name,
+        object_story_spec: JSON.stringify({
+          page_id: env.meta.pageId ?? '',
+          link_data: {
+            message: input.name,
+            link: env.meta.appUrl,
+            picture: input.creative.storage_path,
+          },
+        }),
+      },
+    );
+
+    const ad = await graphPost(`${metaAdSetId}/ads`, context.accessToken!, {
+      name: `${input.name} — Ad`,
+      creative: JSON.stringify({ creative_id: String(creative.id ?? '') }),
+      status: 'PAUSED',
+    });
+
+    return {
+      ok: true,
+      mode: 'live',
+      message: `Campaign ${metaCampaignId} launched with creative "${input.creative.file_name}".`,
+      meta_campaign_id: metaCampaignId,
+      meta_adset_id: metaAdSetId,
+      meta_ad_id: String(ad.id ?? ''),
+      creative_attached: true,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      mode: 'live',
+      message: error instanceof Error ? error.message : 'Unknown Meta API failure',
+      creative_attached: Boolean(input.creative),
+    };
+  }
+}
+
+async function graphPost(
+  path: string,
+  accessToken: string,
+  params: Record<string, string>,
+): Promise<{ id?: string }> {
+  const url = new URL(`${GRAPH_BASE}/${env.meta.apiVersion}/${path.replace(/^\/+/, '')}`);
+  const form = new URLSearchParams(params);
+  form.set('access_token', accessToken);
+
+  const response = await fetch(url, { method: 'POST', body: form, cache: 'no-store' });
+  const body = (await response.json().catch(() => ({}))) as {
+    id?: string;
+    error?: { message?: string };
+  };
+  if (!response.ok || body?.error) {
+    throw new Error(body?.error?.message ?? `Meta returned HTTP ${response.status} on ${path}`);
+  }
+  return body;
+}
+
 /* ------------------------------------------------------------ mapping */
 
 function mapObjective(objective: string): Campaign['objective'] {
