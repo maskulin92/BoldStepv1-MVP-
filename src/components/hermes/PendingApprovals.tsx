@@ -127,7 +127,7 @@ export default function PendingApprovals({
                   <p className="mt-0.5 text-xs text-cream-100/45">
                     {action.client_name} · {action.campaign_name} · {relativeTime(action.created_at)}
                     {' · '}
-                    {action.from_model === 'glm-5-3' ? 'GLM 5.3' : 'Claude'}
+                    {action.from_model === 'glm' ? 'GLM' : 'Claude'}
                   </p>
                 </div>
 

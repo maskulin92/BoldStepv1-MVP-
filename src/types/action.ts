@@ -1,4 +1,4 @@
-export type ActionModel = 'glm-5-3' | 'claude';
+export type ActionModel = 'glm' | 'claude';
 
 export type ActionType = 'pause' | 'resume' | 'budget_change' | 'analysis';
 

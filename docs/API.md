@@ -435,7 +435,7 @@ Owner only. Newest first.
   "campaign_id": "cmp-nova-implant",
   "adset_id": "cmp-nova-implant-as3",
   "action_type": "pause",
-  "from_model": "glm-5-3",
+  "from_model": "glm",
   "suggestion_text": "Pause ad set \"Implant Leads · Interest Stack\"",
   "reason": "CPL rose from RM24 to RM39 over 7 days against a RM28 target.",
   "metadata": { "current_cpl": 39.4, "target_cpl": 28, "performance_change": 64.2 }
@@ -487,14 +487,14 @@ Budgets are sent to Meta in the minor currency unit (sen), so `RM 300` becomes
 ```
 
 Loads the client's last 14 days, compacts it into a context block and asks GLM
-5.3 (falling back to Claude, then to a local heuristic marked `[MOCK]`).
+(falling back to Claude, then to a local heuristic marked `[MOCK]`).
 
 ```json
 {
   "success": true,
   "data": {
     "response": "…",
-    "model": "glm-5.3",
+    "model": "glm-5.2",
     "is_mock": false,
     "suggestions": [],
     "timestamp": "2026-08-16T12:00:00.000Z"

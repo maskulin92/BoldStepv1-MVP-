@@ -64,7 +64,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     id: `act-${randomUUID().slice(0, 8)}`,
     client_id: clientId,
     client_name: client.name,
-    from_model: body.from_model === 'claude' ? 'claude' : 'glm-5-3',
+    from_model: body.from_model === 'claude' ? 'claude' : 'glm',
     action_type: actionType as PendingAction['action_type'],
     campaign_id: campaignId,
     campaign_name: campaign.name,

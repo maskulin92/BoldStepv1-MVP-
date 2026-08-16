@@ -135,7 +135,7 @@ Averaging ratios across days gives the wrong answer whenever daily spend varies.
   id: string;                       // duplicated as a field for collectionGroup lookup
   client_id: string;
   client_name: string;
-  from_model: 'glm-5-3' | 'claude';
+  from_model: 'glm' | 'claude';
   action_type: 'pause' | 'resume' | 'budget_change' | 'analysis';
   campaign_id: string;
   campaign_name: string;

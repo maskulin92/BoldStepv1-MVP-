@@ -4,7 +4,8 @@ import { formatCurrency, percentChange, round, sumInsights } from './utils';
 import type { Campaign, DailyInsight } from '@/types';
 
 /**
- * GLM 5.3 wrapper, with Claude as the fallback.
+ * GLM wrapper (glm-5.2 flagship via https://api.z.ai/api/paas/v4), with
+ * Claude as the fallback.
  *
  * In Phase 1 the *agent* (Hermes) is the one that reasons on a schedule — this
  * client exists so the dashboard's chat box has something to talk to, and so
@@ -69,7 +70,7 @@ export async function chat(options: {
   return { ...mockReply(message, context), is_mock: true };
 }
 
-/* ------------------------------------------------------------- GLM 5.3 */
+/* ------------------------------------------------------------------ GLM */
 
 async function callOpenAiCompatible(options: {
   baseUrl: string;

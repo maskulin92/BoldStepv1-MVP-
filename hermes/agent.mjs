@@ -204,8 +204,8 @@ function buildContext(client, insightsPayload, monitored) {
 
 async function callModel(context) {
   const glmKey = process.env.GLM_API_KEY;
-  const glmBase = process.env.GLM_API_BASE ?? 'https://api.z.ai/v1';
-  const glmModel = process.env.GLM_MODEL ?? 'glm-5.3';
+  const glmBase = process.env.GLM_API_BASE ?? 'https://api.z.ai/api/paas/v4';
+  const glmModel = process.env.GLM_MODEL ?? 'glm-5.2';
 
   if (glmKey) {
     try {
@@ -226,13 +226,13 @@ async function callModel(context) {
       const body = await response.json();
       const text = body.choices?.[0]?.message?.content?.trim();
       const parsed = parseModelJson(text);
-      return { ...parsed, model: glmModel, from_model: 'glm-5-3' };
+      return { ...parsed, model: glmModel, from_model: 'glm' };
     } catch (error) {
       console.warn(`[hermes] GLM failed (${error.message}); falling back to heuristic`);
     }
   }
 
-  return { ...heuristic(context), model: 'heuristic', from_model: 'glm-5-3' };
+  return { ...heuristic(context), model: 'heuristic', from_model: 'glm' };
 }
 
 function parseModelJson(text) {

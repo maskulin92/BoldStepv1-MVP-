@@ -336,7 +336,7 @@ export function buildMockPendingActions(): PendingAction[] {
     id: a.id,
     client_id: a.client_id,
     client_name: a.client_name,
-    from_model: 'glm-5-3' as const,
+    from_model: 'glm' as const,
     action_type: a.action_type,
     campaign_id: a.campaign_id,
     campaign_name: a.campaign_name,

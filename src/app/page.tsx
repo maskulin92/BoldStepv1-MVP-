@@ -15,7 +15,7 @@ const FEATURES = [
   {
     icon: <Bot className="h-5 w-5" aria-hidden />,
     title: 'Hermes analysis',
-    body: 'GLM 5.3 reviews performance on a schedule and files suggestions with its reasoning.',
+    body: 'GLM reviews performance on a schedule and files suggestions with its reasoning.',
   },
   {
     icon: <ShieldCheck className="h-5 w-5" aria-hidden />,

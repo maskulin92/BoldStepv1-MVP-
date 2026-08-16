@@ -126,8 +126,11 @@ export const env = {
 
   glm: {
     apiKey: read('GLM_API_KEY'),
-    baseUrl: read('GLM_API_BASE') ?? 'https://api.z.ai/v1',
-    model: read('GLM_MODEL') ?? 'glm-5.3',
+    // Z.ai's API endpoint is /api/paas/v4 — NOT an OpenAI-style /v1.
+    baseUrl: read('GLM_API_BASE') ?? 'https://api.z.ai/api/paas/v4',
+    // glm-5.3 is Coding-Plan-only for now; glm-5.2 is the flagship available
+    // through the public API. Set GLM_MODEL=glm-5.3 once its API ships.
+    model: read('GLM_MODEL') ?? 'glm-5.2',
     get isConfigured(): boolean {
       return Boolean(read('GLM_API_KEY'));
     },
