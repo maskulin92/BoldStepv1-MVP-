@@ -1,6 +1,6 @@
 'use client';
 
-import { Building2 } from 'lucide-react';
+import { Building2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/common/LoadingSpinner';
 import type { PublicClient } from '@/types';
@@ -10,11 +10,13 @@ export default function ClientSelector({
   clients,
   selectedId,
   onSelect,
+  onAdd,
   loading,
 }: {
   clients: PublicClient[];
   selectedId: string | null;
   onSelect: (clientId: string) => void;
+  onAdd?: () => void;
   loading?: boolean;
 }) {
   if (loading) {
@@ -27,19 +29,39 @@ export default function ClientSelector({
     );
   }
 
+  const addButton = onAdd ? (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-cream-100/70 transition hover:bg-cream-100/10 hover:text-cream-100"
+    >
+      <Plus className="h-3.5 w-3.5" aria-hidden />
+      Add
+    </button>
+  ) : null;
+
   if (clients.length === 0) {
     return (
-      <p className="px-4 py-6 text-sm text-cream-100/45">
-        No clients yet. Add one to the `clients` collection in Firestore.
-      </p>
+      <div className="px-4 py-6 text-center">
+        <p className="text-sm text-cream-100/45">No clients yet.</p>
+        {onAdd ? (
+          <button type="button" className="btn-secondary mt-3" onClick={onAdd}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Add your first client
+          </button>
+        ) : null}
+      </div>
     );
   }
 
   return (
     <div className="p-3">
-      <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-cream-100/40">
-        Clients ({clients.length})
-      </p>
+      <div className="mb-2 flex items-center justify-between gap-2 px-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-cream-100/40">
+          Clients ({clients.length})
+        </p>
+        {addButton}
+      </div>
       <ul className="space-y-1">
         {clients.map((client) => {
           const active = client.id === selectedId;

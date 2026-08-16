@@ -1,5 +1,5 @@
 import 'server-only';
-import { getDb } from './firebase-admin';
+import { getBucket, getDb } from './firebase-admin';
 import { mockStore } from './mock-store';
 import { COLLECTIONS, HERMES_DOCS, OWNER_DOC_ID, insightId } from './collections';
 import { defaultHermesSettings } from './mock-data';
@@ -79,6 +79,142 @@ export async function getClientByLinkId(linkId: string): Promise<Client | null> 
   }
   // Fall back to treating the link segment as the document id.
   return getClient(linkId);
+}
+
+/** True when another client already owns this link segment. */
+export async function isLinkIdTaken(linkId: string, exceptClientId?: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) {
+    return mockStore().clients.some(
+      (c) => c.link_id === linkId && c.id !== exceptClientId,
+    );
+  }
+
+  const snapshot = await db
+    .collection(COLLECTIONS.clients)
+    .where('link_id', '==', linkId)
+    .limit(2)
+    .get();
+  return snapshot.docs.some((doc) => doc.id !== exceptClientId);
+}
+
+export async function createClient(client: Client): Promise<Client> {
+  const db = getDb();
+  if (!db) {
+    mockStore().clients.push(client);
+    return client;
+  }
+
+  const { id, ...data } = client;
+  await db.collection(COLLECTIONS.clients).doc(id).set(clean(data as Doc));
+  return client;
+}
+
+/**
+ * Deletes a client and everything hanging off it.
+ *
+ * Firestore does not cascade: removing `clients/{id}` would orphan every
+ * campaign, insight and action underneath it, and those orphans would still be
+ * picked up by `collectionGroup` queries. So each subcollection is drained
+ * explicitly, then the stored files, then the client document itself.
+ */
+export async function deleteClient(clientId: string): Promise<{
+  deleted_documents: number;
+  deleted_files: boolean;
+}> {
+  const db = getDb();
+
+  if (!db) {
+    const store = mockStore();
+    const before =
+      store.campaigns.length +
+      store.adSets.length +
+      store.insights.length +
+      store.actions.length +
+      store.creatives.length +
+      store.manualEntries.length;
+
+    store.campaigns = store.campaigns.filter((c) => c.client_id !== clientId);
+    store.adSets = store.adSets.filter((a) => a.client_id !== clientId);
+    store.insights = store.insights.filter((i) => i.client_id !== clientId);
+    store.actions = store.actions.filter((a) => a.client_id !== clientId);
+    store.creatives = store.creatives.filter((c) => c.client_id !== clientId);
+    store.manualEntries = store.manualEntries.filter((e) => e.client_id !== clientId);
+    store.clients = store.clients.filter((c) => c.id !== clientId);
+
+    const after =
+      store.campaigns.length +
+      store.adSets.length +
+      store.insights.length +
+      store.actions.length +
+      store.creatives.length +
+      store.manualEntries.length;
+
+    for (const key of [...store.files.keys()]) {
+      if (key.includes(`/${clientId}/`)) store.files.delete(key);
+    }
+
+    return { deleted_documents: before - after + 1, deleted_files: true };
+  }
+
+  const parents: [string, string][] = [
+    [COLLECTIONS.campaigns, COLLECTIONS.campaignItems],
+    [COLLECTIONS.adSets, COLLECTIONS.adSetItems],
+    [COLLECTIONS.dailyInsights, COLLECTIONS.insightItems],
+    [COLLECTIONS.pendingActions, COLLECTIONS.actionItems],
+    [COLLECTIONS.manualEntries, COLLECTIONS.entryItems],
+    [COLLECTIONS.creatives, COLLECTIONS.creativeItems],
+  ];
+
+  let deleted = 0;
+  for (const [parent, child] of parents) {
+    const parentRef = db.collection(parent).doc(clientId);
+    deleted += await drainCollection(parentRef.collection(child));
+    await parentRef.delete();
+    deleted += 1;
+  }
+
+  await db.collection(COLLECTIONS.clients).doc(clientId).delete();
+  deleted += 1;
+
+  // Best effort: a storage failure must not leave the database half-deleted.
+  let filesDeleted = false;
+  try {
+    const bucket = getBucket();
+    if (bucket) {
+      await Promise.all([
+        bucket.deleteFiles({ prefix: `creatives/${clientId}/` }),
+        bucket.deleteFiles({ prefix: `reports/${clientId}/` }),
+      ]);
+      filesDeleted = true;
+    }
+  } catch (error) {
+    console.error(`[boldstep] Could not delete stored files for "${clientId}":`, error);
+  }
+
+  return { deleted_documents: deleted, deleted_files: filesDeleted };
+}
+
+/** Deletes every document in a collection, 400 at a time (batch cap is 500). */
+async function drainCollection(
+  ref: FirebaseFirestore.CollectionReference,
+): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+
+  let total = 0;
+  for (let guard = 0; guard < 100; guard += 1) {
+    const snapshot = await ref.limit(400).get();
+    if (snapshot.empty) break;
+
+    const batch = db.batch();
+    for (const doc of snapshot.docs) batch.delete(doc.ref);
+    await batch.commit();
+
+    total += snapshot.size;
+    if (snapshot.size < 400) break;
+  }
+  return total;
 }
 
 export async function updateClient(

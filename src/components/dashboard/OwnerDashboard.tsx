@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import Navbar from '@/components/common/Navbar';
 import Sidebar, { type OwnerSection } from '@/components/common/Sidebar';
 import ClientSelector from './ClientSelector';
 import ClientDashboard from './ClientDashboard';
+import ClientFormModal from './ClientFormModal';
+import ClientManageBar from './ClientManageBar';
 import DateRangeSelector from './DateRangeSelector';
 import OverviewCards from './OverviewCards';
 import TrendChart from '@/components/reports/TrendChart';
@@ -38,6 +40,8 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
   const [section, setSection] = useState<OwnerSection>('clients');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  // null = closed, 'new' = create, otherwise the client being edited.
+  const [clientForm, setClientForm] = useState<'new' | PublicClient | null>(null);
 
   const clients = useFirestoreList<PublicClient>(API.clients.list);
   const approvals = usePendingApprovals();
@@ -93,6 +97,10 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
               setSelectedClientId(id);
               setSidebarOpen(false);
             }}
+            onAdd={() => {
+              setClientForm('new');
+              setSidebarOpen(false);
+            }}
             loading={clients.loading}
           />
         ) : null}
@@ -124,7 +132,17 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
           ) : clients.loading ? (
             <LoadingPanel label="Loading clients…" />
           ) : section === 'clients' ? (
-            <SectionA clientId={activeClient?.id ?? null} clientName={activeClient?.name} />
+            <SectionA
+              client={activeClient}
+              onAdd={() => setClientForm('new')}
+              onEdit={() => activeClient && setClientForm(activeClient)}
+              onDeleted={(deletedId) => {
+                // Fall back to whichever client is left after the removal.
+                const remaining = managedClients.filter((c) => c.id !== deletedId);
+                setSelectedClientId(remaining[0]?.id ?? null);
+                void clients.refetch();
+              }}
+            />
           ) : section === 'own' ? (
             <SectionB
               client={ownerClient}
@@ -140,29 +158,54 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
           )}
         </main>
       </div>
+
+      <ClientFormModal
+        open={clientForm !== null}
+        client={clientForm === 'new' ? null : clientForm}
+        onClose={() => setClientForm(null)}
+        onSaved={(saved) => {
+          setSelectedClientId(saved.id);
+          setSection(saved.is_owner ? 'own' : 'clients');
+          void clients.refetch();
+        }}
+      />
     </div>
   );
 }
 
 /* ---------------------------------------------- Section A: client monitor */
 
-function SectionA({ clientId, clientName }: { clientId: string | null; clientName?: string }) {
-  if (!clientId) {
+function SectionA({
+  client,
+  onAdd,
+  onEdit,
+  onDeleted,
+}: {
+  client: PublicClient | null;
+  onAdd: () => void;
+  onEdit: () => void;
+  onDeleted: (clientId: string) => void;
+}) {
+  if (!client) {
     return (
-      <InlineNotice tone="info">
-        No client accounts yet. Add documents to the `clients` collection in Firestore to see them
-        here.
-      </InlineNotice>
+      <div className="card p-6 text-center">
+        <p className="text-sm font-medium text-cream-100">No client accounts yet</p>
+        <p className="mx-auto mt-1.5 max-w-md text-sm text-cream-100/55">
+          Add a client to give them their own access link and reporting dashboard.
+        </p>
+        <button type="button" className="btn-primary mx-auto mt-4" onClick={onAdd}>
+          <Plus className="h-4 w-4" aria-hidden />
+          Add client
+        </button>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <ClientDashboard clientId={clientId} clientName={clientName} embedded />
-      <PendingApprovals
-        clientId={clientId}
-        title={`Pending approvals · ${clientName ?? 'this client'}`}
-      />
+      <ClientManageBar client={client} onEdit={onEdit} onDeleted={onDeleted} />
+      <ClientDashboard clientId={client.id} clientName={client.name} embedded />
+      <PendingApprovals clientId={client.id} title={`Pending approvals · ${client.name}`} />
     </div>
   );
 }

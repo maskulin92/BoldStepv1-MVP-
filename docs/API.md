@@ -249,6 +249,37 @@ Exceeding a budget returns `429` with `RATE_LIMIT_EXCEEDED` and
 Owner sees every client; a client session sees only itself. Secrets
 (`access_pin_hash`, `access_token_encrypted`) are never included.
 
+#### `POST /api/clients` — owner only, needs `write`
+
+Creates a client account with its own access link and code.
+
+```json
+{
+  "name": "Sari Wellness Spa",
+  "link_id": "sari-wellness-spa",
+  "pin": "314159",
+  "primary_goal": "leads",
+  "ad_account_id": "act_123456789",
+  "meta_access_token": "EAAG…"
+}
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "client": { "id": "sari-wellness-spa", "name": "Sari Wellness Spa", "link_id": "sari-wellness-spa", "…": "…" },
+    "access_url": "/auth/client/sari-wellness-spa"
+  }
+}
+```
+
+- `link_id` must be 3–48 characters of lowercase letters, numbers and hyphens,
+  and unique across clients. A duplicate returns `422 VALIDATION_ERROR`.
+- `pin` is exactly 6 digits, hashed on save and **never readable again**.
+- `meta_access_token` is optional and encrypted at rest; omit it to fall back to
+  the account-wide `META_ACCESS_TOKEN`.
+
 #### `GET /api/clients/{clientId}`
 
 ```json
@@ -271,6 +302,45 @@ Owner sees every client; a client session sees only itself. Secrets
 ```
 
 `settings` is merged, not replaced, so a partial update can't drop a flag.
+
+Optional fields `pin`, `link_id` and `meta_access_token` are **only applied when
+present** — saving a name change never silently rotates the PIN. The response
+reports `pin_rotated` so the UI can warn that existing client sessions are now
+invalid. Moving `link_id` onto another client's link returns `422`.
+
+#### `DELETE /api/clients/{clientId}?confirm={exact name}` — owner only, needs `execute`
+
+**Irreversible.** Deletes the client together with its campaigns, ad sets,
+insights, pending actions, manual entries, creatives and stored files.
+
+```bash
+curl -X DELETE "http://localhost:3000/api/clients/sari-wellness-spa?confirm=Sari%20Wellness%20Spa" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "deleted": true,
+    "client_id": "sari-wellness-spa",
+    "name": "Sari Wellness Spa",
+    "deleted_documents": 97,
+    "deleted_files": true
+  }
+}
+```
+
+Two guards, both server-side:
+
+- `?confirm=` must match the client's **exact name**, or the call returns `422`.
+  A mistyped id cannot wipe the wrong account.
+- The client with `is_owner: true` cannot be deleted (`403`) — Section B of the
+  dashboard is built around it.
+
+Firestore does not cascade deletes, so each subcollection is drained explicitly.
+Skipping that would leave orphaned documents that `collectionGroup` queries
+still pick up. Once deleted, the `link_id` is free to reuse.
 
 ---
 

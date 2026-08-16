@@ -103,9 +103,10 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 Restart `npm run dev` and check <http://localhost:3000/api/health> —
 `mock_mode` should now be `false` and `firestore: true`.
 
-> Firestore starts empty. Create your first client document by hand (see
-> [docs/SCHEMA.md](docs/SCHEMA.md)); generate its PIN hash with
-> `npm run hash -- --pin 123456`.
+> Firestore starts empty. You can add your first client straight from the
+> dashboard — **Client Accounts → Add** in the sidebar — which writes the
+> document and hashes the PIN for you. (To create one by hand instead, see
+> [docs/SCHEMA.md](docs/SCHEMA.md) and `npm run hash -- --pin 123456`.)
 
 ### 5. Connect Meta, GLM, Telegram
 
@@ -125,6 +126,11 @@ Run through this after `npm run dev`:
 - [ ] Client dashboard shows spend, leads, CPL, CTR
 - [ ] Owner dashboard shows all three sections (Clients / Own Ads / Hermes)
 - [ ] Switching clients in the sidebar reloads that client's data
+- [ ] **Add** in the sidebar creates a client; the link auto-fills from the name
+- [ ] The new client can log in with the PIN you set
+- [ ] **Edit** renames a client without invalidating its existing PIN
+- [ ] **Delete** stays disabled until you type the client's exact name
+- [ ] After deleting, that client's data and login are gone
 - [ ] Campaign table sorts by clicking a column header
 - [ ] Trend chart renders and switches between Spend/Leads, CPL and CTR
 - [ ] Date range 7D / 14D / 30D / 90D changes the numbers

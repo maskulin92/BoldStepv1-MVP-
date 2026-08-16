@@ -111,6 +111,10 @@ export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
   return unwrap<T>(await request(path, { method: 'PUT', body }));
 }
 
+export async function apiDelete<T>(path: string): Promise<T> {
+  return unwrap<T>(await request(path, { method: 'DELETE' }));
+}
+
 export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
   // Let the browser set the multipart boundary itself.
   return unwrap<T>(await request(path, { method: 'POST', body: form, raw: true }));

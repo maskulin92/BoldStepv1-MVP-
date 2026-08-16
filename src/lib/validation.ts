@@ -32,17 +32,43 @@ export const verifyPinSchema = z.object({
   pin: z.string().regex(/^\d{6}$/, 'PIN must be exactly 6 digits'),
 });
 
+/** The URL segment in /client/[linkId] — kept slug-safe so links stay clean. */
+export const linkId = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$/,
+    'Use 3–48 characters: lowercase letters, numbers and hyphens only',
+  );
+
+const clientSettingsSchema = z.object({
+  notification_enabled: z.boolean().optional(),
+  auto_execute: z.boolean().optional(),
+  notification_channel: z.literal('telegram').optional(),
+});
+
+export const createClientSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  link_id: linkId,
+  pin: z.string().regex(/^\d{6}$/, 'PIN must be exactly 6 digits'),
+  primary_goal: z.enum(['leads', 'conversions', 'traffic']).default('leads'),
+  ad_account_id: z.string().trim().max(64).optional(),
+  /** Per-client Meta token; encrypted before it is stored. */
+  meta_access_token: z.string().trim().max(500).optional(),
+  is_owner: z.boolean().optional(),
+  settings: clientSettingsSchema.optional(),
+});
+
 export const updateClientSchema = z.object({
-  name: z.string().min(2).max(120).optional(),
+  name: z.string().trim().min(2).max(120).optional(),
+  link_id: linkId.optional(),
+  /** Supplying a PIN rotates it; omitting it leaves the existing one alone. */
+  pin: z.string().regex(/^\d{6}$/, 'PIN must be exactly 6 digits').optional(),
   primary_goal: z.enum(['leads', 'conversions', 'traffic']).optional(),
-  ad_account_id: z.string().max(64).optional(),
-  settings: z
-    .object({
-      notification_enabled: z.boolean().optional(),
-      auto_execute: z.boolean().optional(),
-      notification_channel: z.literal('telegram').optional(),
-    })
-    .optional(),
+  ad_account_id: z.string().trim().max(64).optional(),
+  meta_access_token: z.string().trim().max(500).optional(),
+  settings: clientSettingsSchema.optional(),
 });
 
 export const approvalDecisionSchema = z.object({

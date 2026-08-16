@@ -1,13 +1,22 @@
 import { ApiError, ok, parseJson, withErrorHandling } from '@/lib/api-response';
-import { assertClientAccess, enforceRateLimit, requireCaller, requireOwner } from '@/lib/api-auth';
 import {
+  assertClientAccess,
+  enforceRateLimit,
+  requireCaller,
+  requireOwner,
+  requirePermission,
+} from '@/lib/api-auth';
+import {
+  deleteClient,
   getClient,
+  isLinkIdTaken,
   listCampaigns,
   listInsights,
   listPendingActions,
   toPublicClient,
   updateClient,
 } from '@/lib/firestore';
+import { encryptToken, hashPin } from '@/lib/auth';
 import { defaultDateRange, sumInsights } from '@/lib/utils';
 import { updateClientSchema, validate } from '@/lib/validation';
 
@@ -54,14 +63,71 @@ export const PUT = withErrorHandling(async (request: Request, context: Context) 
   const existing = await getClient(clientId);
   if (!existing) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
 
-  const { settings, ...fields } = patch;
+  const { settings, pin, link_id, meta_access_token, ...fields } = patch;
+
+  // A new link must not collide with another client's.
+  if (link_id && link_id !== existing.link_id && (await isLinkIdTaken(link_id, clientId))) {
+    throw new ApiError(
+      'VALIDATION_ERROR',
+      `The link "${link_id}" is already used by another client.`,
+      { link_id: 'This link is already taken.' },
+    );
+  }
+
   const updated = await updateClient(clientId, {
     ...fields,
+    ...(link_id ? { link_id } : {}),
+    // Only rotate the PIN / token when a new one was actually supplied.
+    ...(pin ? { access_pin_hash: hashPin(pin) } : {}),
+    ...(meta_access_token ? { access_token_encrypted: encryptToken(meta_access_token) } : {}),
     // Merge settings rather than replacing the whole object, so a partial
     // update can't drop a flag the caller didn't mention.
     ...(settings ? { settings: { ...existing.settings, ...settings } } : {}),
   });
 
   if (!updated) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
-  return ok({ updatedClient: toPublicClient(updated) });
+  return ok({ updatedClient: toPublicClient(updated), pin_rotated: Boolean(pin) });
+});
+
+/**
+ * DELETE /api/clients/[clientId] — owner only, irreversible.
+ *
+ * Removes the client together with its campaigns, ad sets, insights, actions,
+ * manual entries, creatives and stored files. Requires `?confirm=<name>`
+ * matching the client's name, so a mistyped id cannot wipe the wrong account.
+ */
+export const DELETE = withErrorHandling(async (request: Request, context: Context) => {
+  const { clientId } = await context.params;
+  const caller = await requireOwner(request);
+  requirePermission(caller, 'execute');
+  enforceRateLimit(request, caller, 30, 'clients-write');
+
+  const client = await getClient(clientId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+
+  // Section B of the dashboard is built around the owner's own account.
+  if (client.is_owner) {
+    throw new ApiError(
+      'FORBIDDEN',
+      'The owner account cannot be deleted. Clear `is_owner` on it first if you really mean to remove it.',
+    );
+  }
+
+  const confirm = new URL(request.url).searchParams.get('confirm');
+  if (confirm !== client.name) {
+    throw new ApiError(
+      'VALIDATION_ERROR',
+      'Deleting a client is irreversible. Pass ?confirm=<exact client name> to proceed.',
+      { expected: client.name, received: confirm ?? null },
+    );
+  }
+
+  const result = await deleteClient(clientId);
+
+  return ok({
+    deleted: true,
+    client_id: clientId,
+    name: client.name,
+    ...result,
+  });
 });
