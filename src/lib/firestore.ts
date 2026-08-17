@@ -956,8 +956,14 @@ export async function recordFailedPinAttempt(linkId: string): Promise<PinAttempt
     if (!g[PIN_GLOBAL_KEY]) g[PIN_GLOBAL_KEY] = { counters: new Map() };
     state = g[PIN_GLOBAL_KEY].counters.get(linkId) ?? { failed_attempts: 0 };
   } else {
-    const doc = await db.collection(COLLECTIONS.pinAttempts).doc(linkId).get();
-    state = (doc.data() as PinAttemptState | undefined) ?? { failed_attempts: 0 };
+    try {
+      const doc = await db.collection(COLLECTIONS.pinAttempts).doc(linkId).get();
+      state = (doc.data() as PinAttemptState | undefined) ?? { failed_attempts: 0 };
+    } catch (error) {
+      // Degrade to the IP limiter rather than failing the login route.
+      console.warn(`[PIN] Firestore read failed: ${error instanceof Error ? error.message : error}, using IP fallback`);
+      return { locked: false, failed_attempts: 0, retry_after_seconds: 0 };
+    }
   }
 
   // An expired lock is a clean slate.
@@ -973,10 +979,16 @@ export async function recordFailedPinAttempt(linkId: string): Promise<PinAttempt
   if (!db) {
     (globalThis as GlobalWithPinAttempts)[PIN_GLOBAL_KEY]!.counters.set(linkId, state);
   } else {
-    await db
-      .collection(COLLECTIONS.pinAttempts)
-      .doc(linkId)
-      .set(clean(state as unknown as Doc), { merge: true });
+    try {
+      await db
+        .collection(COLLECTIONS.pinAttempts)
+        .doc(linkId)
+        .set(clean(state as unknown as Doc), { merge: true });
+    } catch (error) {
+      // Attempt tracking is best-effort: never let a counters write break the
+      // login route itself. The IP limiter still bounds abuse meanwhile.
+      console.warn(`[PIN] Firestore write failed: ${error instanceof Error ? error.message : error}, attempt tracking unavailable`);
+    }
   }
 
   return toDecision(state);
@@ -991,8 +1003,14 @@ export async function getPinAttemptState(linkId: string): Promise<PinAttemptDeci
     const g = globalThis as GlobalWithPinAttempts;
     state = g[PIN_GLOBAL_KEY]?.counters.get(linkId) ?? { failed_attempts: 0 };
   } else {
-    const doc = await db.collection(COLLECTIONS.pinAttempts).doc(linkId).get();
-    state = (doc.data() as PinAttemptState | undefined) ?? { failed_attempts: 0 };
+    try {
+      const doc = await db.collection(COLLECTIONS.pinAttempts).doc(linkId).get();
+      state = (doc.data() as PinAttemptState | undefined) ?? { failed_attempts: 0 };
+    } catch (error) {
+      // Degrade to the IP limiter rather than failing the login route.
+      console.warn(`[PIN] Firestore read failed: ${error instanceof Error ? error.message : error}, using IP fallback`);
+      return { locked: false, failed_attempts: 0, retry_after_seconds: 0 };
+    }
   }
 
   if (state.locked_until && new Date(state.locked_until).getTime() <= Date.now()) {
