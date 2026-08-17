@@ -80,6 +80,35 @@ const firebaseAdminProjectId = read('FIREBASE_PROJECT_ID');
 const firebaseAdminClientEmail = read('FIREBASE_CLIENT_EMAIL');
 const firebaseAdminPrivateKey = read('FIREBASE_PRIVATE_KEY');
 
+let devEncryptionKey: string | null = null;
+
+const devEncryptionKeyPath = (): string =>
+  join(process.cwd(), '.next', 'cache', 'boldstep-dev-encryption-key');
+
+const devEncryptionKeyFallback = (): string => {
+  if (devEncryptionKey) return devEncryptionKey;
+
+  const path = devEncryptionKeyPath();
+  try {
+    if (existsSync(path)) {
+      const cached = readFileSync(path, 'utf8').trim();
+      if (cached.length >= 32) {
+        devEncryptionKey = cached;
+        return devEncryptionKey;
+      }
+    }
+    devEncryptionKey = randomBytes(32).toString('base64url');
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, devEncryptionKey, { encoding: 'utf8' });
+    console.warn(
+      '[boldstep] ENCRYPTION_KEY is not set — generated a local development key at .next/cache/boldstep-dev-encryption-key. Set ENCRYPTION_KEY in .env.local before deploying.',
+    );
+  } catch {
+    devEncryptionKey = devEncryptionKey ?? randomBytes(32).toString('base64url');
+  }
+  return devEncryptionKey;
+};
+
 export const env = {
   appUrl: read('NEXT_PUBLIC_APP_URL') ?? 'http://localhost:3000',
 
@@ -92,9 +121,23 @@ export const env = {
   },
 
   encryption: {
-    /** Falls back to the JWT secret so token encryption still works in dev. */
+    /**
+     * Independent from JWT_SECRET by design: this key encrypts Meta access
+     * tokens at rest, and reusing the session-signing key would let anyone
+     * holding it both forge sessions and decrypt stored tokens. In dev an
+     * ephemeral key is generated (tokens encrypted earlier become unreadable
+     * after a restart — acceptable locally); production refuses to start
+     * without a real value.
+     */
     get key(): string {
-      return read('ENCRYPTION_KEY') ?? read('JWT_SECRET') ?? jwtSecretFallback();
+      const explicit = read('ENCRYPTION_KEY');
+      if (explicit) return explicit;
+      if (IS_PRODUCTION) {
+        throw new Error(
+          'ENCRYPTION_KEY is required in production and must be a separate secret from JWT_SECRET. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64url\'))"',
+        );
+      }
+      return devEncryptionKeyFallback();
     },
   },
 

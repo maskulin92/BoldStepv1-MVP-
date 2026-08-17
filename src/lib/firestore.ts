@@ -913,3 +913,113 @@ export async function updateWebhook(
   }
   await db.collection(COLLECTIONS.webhooks).doc(webhookId).set(clean(patch as Doc), { merge: true });
 }
+
+/* ------------------------------------------------- per-link PIN lockout */
+
+export interface PinAttemptState {
+  failed_attempts: number;
+  locked_until?: string;
+}
+
+export interface PinAttemptDecision {
+  locked: boolean;
+  failed_attempts: number;
+  locked_until?: string;
+  /** Seconds until the lock expires; 0 when not locked. */
+  retry_after_seconds: number;
+}
+
+const PIN_MAX_ATTEMPTS = 10;
+const PIN_LOCKOUT_MS = 15 * 60 * 1000;
+
+interface MockPinAttempts {
+  counters: Map<string, PinAttemptState>;
+}
+
+const PIN_GLOBAL_KEY = Symbol.for('boldstep.mock-pin-attempts');
+type GlobalWithPinAttempts = typeof globalThis & {
+  [PIN_GLOBAL_KEY]?: MockPinAttempts;
+};
+
+/**
+ * Counts a failed PIN attempt against a client link in Firestore, so the
+ * counter survives serverless cold starts and is shared across instances.
+ * 10 consecutive failures lock the link for 15 minutes (auto-unlock).
+ * A successful login clears the counter. Returns the post-increment state.
+ */
+export async function recordFailedPinAttempt(linkId: string): Promise<PinAttemptDecision> {
+  const db = getDb();
+
+  let state: PinAttemptState;
+  if (!db) {
+    const g = globalThis as GlobalWithPinAttempts;
+    if (!g[PIN_GLOBAL_KEY]) g[PIN_GLOBAL_KEY] = { counters: new Map() };
+    state = g[PIN_GLOBAL_KEY].counters.get(linkId) ?? { failed_attempts: 0 };
+  } else {
+    const doc = await db.collection(COLLECTIONS.pinAttempts).doc(linkId).get();
+    state = (doc.data() as PinAttemptState | undefined) ?? { failed_attempts: 0 };
+  }
+
+  // An expired lock is a clean slate.
+  if (state.locked_until && new Date(state.locked_until).getTime() <= Date.now()) {
+    state = { failed_attempts: 0 };
+  }
+
+  state.failed_attempts += 1;
+  if (state.failed_attempts >= PIN_MAX_ATTEMPTS) {
+    state.locked_until = new Date(Date.now() + PIN_LOCKOUT_MS).toISOString();
+  }
+
+  if (!db) {
+    (globalThis as GlobalWithPinAttempts)[PIN_GLOBAL_KEY]!.counters.set(linkId, state);
+  } else {
+    await db
+      .collection(COLLECTIONS.pinAttempts)
+      .doc(linkId)
+      .set(clean(state as unknown as Doc), { merge: true });
+  }
+
+  return toDecision(state);
+}
+
+/** Whether a link is currently locked (called before verifying a PIN). */
+export async function getPinAttemptState(linkId: string): Promise<PinAttemptDecision> {
+  const db = getDb();
+
+  let state: PinAttemptState;
+  if (!db) {
+    const g = globalThis as GlobalWithPinAttempts;
+    state = g[PIN_GLOBAL_KEY]?.counters.get(linkId) ?? { failed_attempts: 0 };
+  } else {
+    const doc = await db.collection(COLLECTIONS.pinAttempts).doc(linkId).get();
+    state = (doc.data() as PinAttemptState | undefined) ?? { failed_attempts: 0 };
+  }
+
+  if (state.locked_until && new Date(state.locked_until).getTime() <= Date.now()) {
+    state = { failed_attempts: 0 };
+  }
+
+  return toDecision(state);
+}
+
+/** A correct PIN wipes the counter — lockouts never outlive a successful login. */
+export async function clearPinAttempts(linkId: string): Promise<void> {
+  const db = getDb();
+  if (!db) {
+    const g = globalThis as GlobalWithPinAttempts;
+    g[PIN_GLOBAL_KEY]?.counters.delete(linkId);
+    return;
+  }
+  await db.collection(COLLECTIONS.pinAttempts).doc(linkId).delete().catch(() => undefined);
+}
+
+function toDecision(state: PinAttemptState): PinAttemptDecision {
+  const lockedUntil = state.locked_until ? new Date(state.locked_until).getTime() : 0;
+  const locked = lockedUntil > Date.now();
+  return {
+    locked,
+    failed_attempts: state.failed_attempts,
+    locked_until: locked ? state.locked_until : undefined,
+    retry_after_seconds: locked ? Math.ceil((lockedUntil - Date.now()) / 1000) : 0,
+  };
+}

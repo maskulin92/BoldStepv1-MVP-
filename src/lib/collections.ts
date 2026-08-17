@@ -13,6 +13,8 @@ export const COLLECTIONS = {
   apiKeys: 'api_keys',
   webhooks: 'webhooks',
   hermesMemory: 'hermes_memory',
+  /** Per-link PIN attempt counters — one document per client link. */
+  pinAttempts: 'pin_attempts',
 
   campaigns: 'campaigns',
   campaignItems: 'campaign_items',
