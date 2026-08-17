@@ -97,10 +97,10 @@ export function hashPassword(password: string): string {
 export function verifyPassword(password: string, stored: string): boolean {
   const parts = stored.split('$');
   if (parts.length !== 4 || parts[0] !== 'scrypt') return false;
-  const [, , salt, expected] = parts;
+  const [, , salt, hash] = parts;
   try {
     const derived = scryptSync(password, salt, 64).toString('hex');
-    return safeCompare(derived, expected);
+    return safeCompare(derived, hash);
   } catch {
     return false;
   }
