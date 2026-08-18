@@ -154,8 +154,11 @@ export const env = {
   },
 
   meta: {
-    /** System-user token wins if both are set; META_ACCESS_TOKEN stays valid. */
-    accessToken: read('META_SYSTEM_USER_TOKEN') ?? read('META_ACCESS_TOKEN'),
+    /**
+     * Meta tokens are NOT read from the environment anymore — they live
+     * encrypted per-account in Firestore, set via the dashboard. Only the
+     * shared ad account id (not a secret) may be set here as a default.
+     */
     adAccountId: read('META_AD_ACCOUNT_ID'),
     apiVersion: read('META_API_VERSION') ?? 'v21.0',
     /** Facebook Page id for ad creative object_story_spec. */
@@ -164,7 +167,8 @@ export const env = {
       return read('NEXT_PUBLIC_APP_URL') ?? 'http://localhost:3000';
     },
     get isConfigured(): boolean {
-      return Boolean(read('META_SYSTEM_USER_TOKEN') ?? read('META_ACCESS_TOKEN'));
+      const id = read('META_AD_ACCOUNT_ID');
+      return Boolean(id && id !== 'act_XXXXXXXXX' && id !== 'YOUR_AD_ACCOUNT_ID');
     },
   },
 

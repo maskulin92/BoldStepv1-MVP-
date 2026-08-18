@@ -28,14 +28,34 @@ export interface MetaCallContext {
   adAccountId: string | null;
 }
 
-/** Per-client token if stored, otherwise the account-wide token from .env. */
+/** Placeholder values in .env files are treated as "not configured", never as real. */
+const META_PLACEHOLDERS = new Set([
+  'YOUR_ACCESS_TOKEN',
+  'YOUR_AD_ACCOUNT_ID',
+  'act_XXXXXXXXX',
+]);
+
+function isPlaceholder(value: string | null | undefined): boolean {
+  if (!value) return true;
+  return META_PLACEHOLDERS.has(value.trim());
+}
+
+/**
+ * The dashboard is the single source of truth for Meta tokens: the token is
+ * read from the account's encrypted Firestore field, nothing else. There is
+ * no .env.local token fallback — Fadhil sets it once in the dashboard.
+ *
+ * The ad account id is also per-account first, with .env.local as a shared
+ * default (an id is not a secret), but placeholders are ignored.
+ */
 export function resolveMetaContext(client?: Client | null): MetaCallContext {
   const clientToken = client?.access_token_encrypted
     ? decryptToken(client.access_token_encrypted)
     : null;
+  const adAccountId = client?.ad_account_id ?? env.meta.adAccountId ?? null;
   return {
-    accessToken: clientToken ?? env.meta.accessToken ?? null,
-    adAccountId: client?.ad_account_id ?? env.meta.adAccountId ?? null,
+    accessToken: isPlaceholder(clientToken) ? null : clientToken,
+    adAccountId: isPlaceholder(adAccountId) ? null : adAccountId,
   };
 }
 
@@ -322,7 +342,7 @@ export async function executeAction(
     return {
       ok: true,
       mode: 'mock',
-      message: `[MOCK] Would POST to Meta object ${target} with ${JSON.stringify(payload)}. Set META_ACCESS_TOKEN in .env.local to execute for real.`,
+      message: `[MOCK] Would POST to Meta object ${target} with ${JSON.stringify(payload)}. Add the account's Meta token in the dashboard to execute for real.`,
       applied: payload,
       executed_at: executedAt,
     };
@@ -430,7 +450,7 @@ export async function launchCampaign(
     return {
       ok: true,
       mode: 'mock',
-      message: `[MOCK] Would create campaign (${parts.join(', ')}) under ${context.adAccountId ?? 'the ad account'}. Set META_ACCESS_TOKEN in .env.local to launch for real.`,
+      message: `[MOCK] Would create campaign (${parts.join(', ')}) under ${context.adAccountId ?? 'the ad account'}. Add the account's Meta token in the dashboard to launch for real.`,
       creative_attached: Boolean(input.creative),
     };
   }

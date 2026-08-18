@@ -49,8 +49,8 @@ export const GET = withErrorHandling(async (request: Request) => {
  *
  * Pulls campaigns / ad sets / insights and stores them. Callable by the owner
  * from the dashboard, or by Hermes with its API key on a cron — same endpoint,
- * same result. Without META_ACCESS_TOKEN / META_SYSTEM_USER_TOKEN it writes
- * generated rows so the sync path itself is still testable.
+ * same result. Without a Meta token on the account (set in the dashboard) it
+ * writes generated rows so the sync path itself is still testable.
  */
 export const POST = withErrorHandling(async (request: Request) => {
   const caller = await requireOwner(request);
@@ -157,6 +157,6 @@ async function runSync(
     range: { start: startDate, end: endDate },
     note: live
       ? failureDetail
-      : 'META token is not set — generated rows were written instead of live Meta data.',
+      : 'No Meta token on this account — add it in the dashboard (Edit account) to pull live data.',
   });
 }

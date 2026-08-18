@@ -266,19 +266,21 @@ export default function AccountFormModal({
 
         <div>
           <label className="label" htmlFor="client-token">
-            Meta access token (optional)
+            Meta access token
           </label>
           <input
             id="client-token"
             type="password"
             value={metaToken}
             onChange={(event) => setMetaToken(event.target.value)}
-            placeholder={isEdit ? 'Leave blank to keep current' : 'Falls back to META_ACCESS_TOKEN'}
+            placeholder={isEdit ? 'Leave blank to keep current' : 'Paste the system-user token'}
             className="w-full"
             autoComplete="off"
           />
           <p className="mt-1 text-xs text-cream-100/40">
-            Encrypted before storage. Leave blank to use the account-wide token from .env.local.
+            Encrypted before storage. This is the only place the token is read — set it
+            here once and sync will use it. Leave blank to keep the account on generated
+            (mock) data.
           </p>
         </div>
 
