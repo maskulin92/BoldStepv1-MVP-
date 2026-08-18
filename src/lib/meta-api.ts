@@ -233,9 +233,65 @@ interface MetaInsightRow {
   spend?: string;
   impressions?: string;
   clicks?: string;
-  /** Objective-optimised result count — the "Results" column in Ads Manager. */
-  results?: string;
+  /**
+   * Objective-optimised result count — the "Results" column in Ads Manager.
+   * Two formats depending on API version/params:
+   *   - plain string: "65"
+   *   - indicator array (v18+ with attribution windows):
+   *     [{"indicator":"actions","value":"[{\"action_type\":…,\"value\":\"65\"}]"}]
+   */
+  results?: string | { indicator?: string; value?: string }[];
   actions?: { action_type: string; value: string }[];
+}
+
+/**
+ * Extracts the result count from either `results` shape.
+ *
+ * - Plain numeric string → Number() directly.
+ * - Indicator array → sum every numeric `value`; when a value is itself a
+ *   stringified JSON array of actions (the newer breakdown format), parse it
+ *   and sum the action values inside. Meta only includes result-relevant
+ *   indicators in this field, so the total matches Ads Manager's Results
+ *   column.
+ */
+function extractResultsCount(results: MetaInsightRow['results']): number {
+  if (results == null) return 0;
+
+  if (typeof results === 'string') {
+    const n = Number(results);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  if (!Array.isArray(results)) return 0;
+
+  let total = 0;
+  for (const entry of results) {
+    if (!entry || typeof entry.value !== 'string') continue;
+    const raw = entry.value.trim();
+
+    if (/^\d+(\.\d+)?$/.test(raw)) {
+      total += Number(raw);
+      continue;
+    }
+
+    // Stringified JSON array of actions — parse and sum the values.
+    if (raw.startsWith('[')) {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          for (const action of parsed) {
+            if (action && typeof action === 'object' && 'value' in action) {
+              const v = Number((action as { value: unknown }).value);
+              if (Number.isFinite(v)) total += v;
+            }
+          }
+        }
+      } catch {
+        // Malformed inner JSON — skip, the actions fallback still applies.
+      }
+    }
+  }
+  return total;
 }
 
 /**
@@ -270,20 +326,13 @@ export async function fetchInsights(options: {
     },
   );
 
-  // Temporary diagnostic — dump the raw shape for the first row(s) so the
-  // results-vs-actions mismatch can be resolved against real data.
-  if (body.data.length > 0) {
-    console.log('[boldstep:meta:insights] RAW row sample:', JSON.stringify(body.data[0]));
-  }
-
   const now = new Date().toISOString();
   return body.data.map((row) => {
     // "Results" is the objective-optimised count shown in Ads Manager — for a
-    // Leads objective that is the lead count. Using it (rather than guessing
-    // from the actions[] action_type strings) keeps leads exactly aligned
-    // with the number Fadhil sees in Ads Manager. Fall back to the actions
-    // tally only when results is absent (e.g. a metric Meta didn't return).
-    const results = Number(row.results ?? 0);
+    // Leads objective that is the lead count. It arrives in two shapes (plain
+    // number or indicator array), both handled by extractResultsCount. Fall
+    // back to the actions tally only when results yields nothing.
+    const results = extractResultsCount(row.results);
     const totals = {
       spend: Number(row.spend ?? 0),
       impressions: Number(row.impressions ?? 0),
