@@ -18,10 +18,10 @@ interface ReportResponse {
  * authenticated download route.
  */
 export default function ExportButtons({
-  clientId,
+  accountId,
   range,
 }: {
-  clientId: string;
+  accountId: string;
   range: { start: string; end: string };
 }) {
   const [busy, setBusy] = useState<'pdf' | 'csv' | null>(null);
@@ -33,7 +33,7 @@ export default function ExportButtons({
     try {
       const endpoint = format === 'pdf' ? API.reports.pdf : API.reports.csv;
       const report = await apiPost<ReportResponse>(endpoint, {
-        client_id: clientId,
+        client_id: accountId,
         date_range: range,
       });
       await downloadFile(report.download_url, report.file_name);

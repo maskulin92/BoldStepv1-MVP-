@@ -24,19 +24,19 @@ interface CreativeRow extends Creative {
  * and manual entries wait here until approved (which publishes them into the
  * client-facing library / metrics) or rejected (which hides them).
  */
-export default function ReviewQueue({ clientId }: { clientId: string }) {
+export default function ReviewQueue({ accountId }: { accountId: string }) {
   const [creativeRefresh, setCreativeRefresh] = useState(0);
   const [entryRefresh, setEntryRefresh] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
 
   const creatives = useFirestoreList<CreativeRow>(
-    `${API.creatives.list(clientId)}?status=pending_review`,
-    [clientId, creativeRefresh],
+    `${API.creatives.list(accountId)}?status=pending_review`,
+    [accountId, creativeRefresh],
   );
   const entries = useFirestoreList<ManualEntry>(
-    `${API.manualEntry.list(clientId)}?approved_only=false&status=pending_approval`,
-    [clientId, entryRefresh],
+    `${API.manualEntry.list(accountId)}?approved_only=false&status=pending_approval`,
+    [accountId, entryRefresh],
   );
 
   const decide = async (

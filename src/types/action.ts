@@ -15,7 +15,7 @@ export interface ActionMetadata {
   [key: string]: number | string | boolean | undefined;
 }
 
-/** `pending_actions/{clientId}/items/{actionId}` */
+/** `pending_actions/{accountId}/items/{actionId}` */
 export interface PendingAction {
   id: string;
   client_id: string;

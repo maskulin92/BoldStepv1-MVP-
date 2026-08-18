@@ -6,20 +6,20 @@ import { defaultDateRange, isValidDateKey, paginate, round, sumInsights } from '
 
 export const dynamic = 'force-dynamic';
 
-type Context = { params: Promise<{ clientId: string }> };
+type Context = { params: Promise<{ accountId: string }> };
 
 /**
- * GET /api/integrations/export/campaigns/[clientId]?format=json|csv&startDate=&endDate=
+ * GET /api/integrations/export/campaigns/[accountId]?format=json|csv&startDate=&endDate=
  * Auth: API key with `read`.
  */
 export const GET = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId } = await context.params;
+  const { accountId } = await context.params;
   const caller = await requireApiKey(request);
   requirePermission(caller, 'read');
   enforceRateLimit(request, caller);
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   const url = new URL(request.url);
   const format = (url.searchParams.get('format') ?? 'json').toLowerCase();
@@ -32,8 +32,8 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
     : fallback.end;
 
   const [campaigns, insights] = await Promise.all([
-    listCampaigns(clientId),
-    listInsights(clientId, startDate, endDate),
+    listCampaigns(accountId),
+    listInsights(accountId, startDate, endDate),
   ]);
 
   const rows = campaigns.map((campaign) => {
@@ -57,7 +57,7 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
   });
 
   if (format === 'csv') {
-    return csvResponse(rows, `boldstep-campaigns-${clientId}-${startDate}_${endDate}.csv`);
+    return csvResponse(rows, `boldstep-campaigns-${accountId}-${startDate}_${endDate}.csv`);
   }
   if (format !== 'json') {
     throw new ApiError('VALIDATION_ERROR', 'format must be "json" or "csv".');

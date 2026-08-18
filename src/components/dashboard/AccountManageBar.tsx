@@ -13,7 +13,7 @@ import type { PublicClient } from '@/types';
  * Header strip above Section A: shows the selected client's shareable link and
  * exposes Edit / Delete.
  */
-export default function ClientManageBar({
+export default function AccountManageBar({
   client,
   onEdit,
   onDeleted,
@@ -21,7 +21,7 @@ export default function ClientManageBar({
 }: {
   client: PublicClient;
   onEdit: () => void;
-  onDeleted: (clientId: string) => void;
+  onDeleted: (accountId: string) => void;
   /** Optional extra control (e.g. "New campaign") rendered with the actions. */
   extra?: React.ReactNode;
 }) {

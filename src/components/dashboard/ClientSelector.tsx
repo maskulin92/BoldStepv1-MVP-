@@ -15,7 +15,7 @@ export default function ClientSelector({
 }: {
   clients: PublicClient[];
   selectedId: string | null;
-  onSelect: (clientId: string) => void;
+  onSelect: (accountId: string) => void;
   onAdd?: () => void;
   loading?: boolean;
 }) {
@@ -43,11 +43,11 @@ export default function ClientSelector({
   if (clients.length === 0) {
     return (
       <div className="px-4 py-6 text-center">
-        <p className="text-sm text-cream-100/45">No clients yet.</p>
+        <p className="text-sm text-cream-100/45">No accounts yet.</p>
         {onAdd ? (
           <button type="button" className="btn-secondary mt-3" onClick={onAdd}>
             <Plus className="h-4 w-4" aria-hidden />
-            Add your first client
+            Add your first account
           </button>
         ) : null}
       </div>
@@ -58,7 +58,7 @@ export default function ClientSelector({
     <div className="p-3">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-cream-100/40">
-          Clients ({clients.length})
+          Accounts ({clients.length})
         </p>
         {addButton}
       </div>

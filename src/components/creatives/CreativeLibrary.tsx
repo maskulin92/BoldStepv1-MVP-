@@ -15,18 +15,18 @@ interface CreativeRow extends Creative {
 }
 
 export default function CreativeLibrary({
-  clientId,
+  accountId,
   refreshKey = 0,
   compact = false,
 }: {
-  clientId: string;
+  accountId: string;
   /** Bump to force a reload after an upload. */
   refreshKey?: number;
   compact?: boolean;
 }) {
   const { items, loading, error, refetch } = useFirestoreList<CreativeRow>(
-    API.creatives.list(clientId),
-    [clientId, refreshKey],
+    API.creatives.list(accountId),
+    [accountId, refreshKey],
   );
 
   const [downloadError, setDownloadError] = useState<string | null>(null);

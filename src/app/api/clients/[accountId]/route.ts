@@ -7,7 +7,7 @@ import {
   requirePermission,
 } from '@/lib/api-auth';
 import {
-  deleteClient,
+  deleteAccount,
   getClient,
   isLinkIdTaken,
   listCampaigns,
@@ -22,24 +22,24 @@ import { updateClientSchema, validate } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
-type Context = { params: Promise<{ clientId: string }> };
+type Context = { params: Promise<{ accountId: string }> };
 
-/** GET /api/clients/[clientId] — client record + recent campaigns + settings. */
+/** GET /api/clients/[accountId] — client record + recent campaigns + settings. */
 export const GET = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId } = await context.params;
+  const { accountId } = await context.params;
   const caller = await requireCaller(request);
   enforceRateLimit(request, caller);
-  assertClientAccess(caller, clientId);
+  assertClientAccess(caller, accountId);
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   const range = defaultDateRange(7);
   const [campaigns, insights, pendingActions] = await Promise.all([
-    listCampaigns(clientId),
-    listInsights(clientId, range.start, range.end),
+    listCampaigns(accountId),
+    listInsights(accountId, range.start, range.end),
     caller.role === 'owner'
-      ? listPendingActions({ clientId, status: 'pending' })
+      ? listPendingActions({ accountId, status: 'pending' })
       : Promise.resolve([]),
   ]);
 
@@ -52,21 +52,21 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
   });
 });
 
-/** PUT /api/clients/[clientId] — owner only. */
+/** PUT /api/clients/[accountId] — owner only. */
 export const PUT = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId } = await context.params;
+  const { accountId } = await context.params;
   const caller = await requireOwner(request);
   enforceRateLimit(request, caller);
 
   const patch = validate(updateClientSchema, await parseJson(request));
 
-  const existing = await getClient(clientId);
-  if (!existing) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const existing = await getClient(accountId);
+  if (!existing) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   const { settings, pin, link_id, meta_access_token, ...fields } = patch;
 
   // A new link must not collide with another client's.
-  if (link_id && link_id !== existing.link_id && (await isLinkIdTaken(link_id, clientId))) {
+  if (link_id && link_id !== existing.link_id && (await isLinkIdTaken(link_id, accountId))) {
     throw new ApiError(
       'VALIDATION_ERROR',
       `The link "${link_id}" is already used by another client.`,
@@ -74,7 +74,7 @@ export const PUT = withErrorHandling(async (request: Request, context: Context) 
     );
   }
 
-  const updated = await updateClient(clientId, {
+  const updated = await updateClient(accountId, {
     ...fields,
     ...(link_id ? { link_id } : {}),
     // Only rotate the PIN / token when a new one was actually supplied.
@@ -85,25 +85,25 @@ export const PUT = withErrorHandling(async (request: Request, context: Context) 
     ...(settings ? { settings: { ...existing.settings, ...settings } } : {}),
   });
 
-  if (!updated) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  if (!updated) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
   return ok({ updatedClient: toPublicClient(updated), pin_rotated: Boolean(pin) });
 });
 
 /**
- * DELETE /api/clients/[clientId] — owner only, irreversible.
+ * DELETE /api/clients/[accountId] — owner only, irreversible.
  *
  * Removes the client together with its campaigns, ad sets, insights, actions,
  * manual entries, creatives and stored files. Requires `?confirm=<name>`
  * matching the client's name, so a mistyped id cannot wipe the wrong account.
  */
 export const DELETE = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId } = await context.params;
+  const { accountId } = await context.params;
   const caller = await requireOwner(request);
   requirePermission(caller, 'execute');
   enforceRateLimit(request, caller, 30, 'clients-write');
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   // Section B of the dashboard is built around the owner's own account.
   if (client.is_owner) {
@@ -122,11 +122,11 @@ export const DELETE = withErrorHandling(async (request: Request, context: Contex
     );
   }
 
-  const result = await deleteClient(clientId);
+  const result = await deleteAccount(accountId);
 
   return ok({
     deleted: true,
-    client_id: clientId,
+    client_id: accountId,
     name: client.name,
     ...result,
   });

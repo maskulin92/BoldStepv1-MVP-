@@ -76,7 +76,7 @@ interface MetaCampaignRow {
 
 export async function fetchCampaigns(
   context: MetaCallContext,
-  clientId: string,
+  accountId: string,
 ): Promise<Campaign[]> {
   if (!isMetaLive(context)) return [];
 
@@ -89,7 +89,7 @@ export async function fetchCampaigns(
   const now = new Date().toISOString();
   return body.data.map((row) => ({
     id: row.id,
-    client_id: clientId,
+    client_id: accountId,
     name: row.name,
     objective: mapObjective(row.objective),
     status: mapCampaignStatus(row.status),
@@ -111,7 +111,7 @@ interface MetaAdSetRow {
   targeting?: Record<string, unknown>;
 }
 
-export async function fetchAdSets(context: MetaCallContext, clientId: string): Promise<AdSet[]> {
+export async function fetchAdSets(context: MetaCallContext, accountId: string): Promise<AdSet[]> {
   if (!isMetaLive(context)) return [];
 
   const body = await graphRequest<{ data: MetaAdSetRow[] }>(
@@ -131,7 +131,7 @@ export async function fetchAdSets(context: MetaCallContext, clientId: string): P
     };
     return {
       id: row.id,
-      client_id: clientId,
+      client_id: accountId,
       campaign_id: row.campaign_id,
       name: row.name,
       daily_budget: row.daily_budget ? round(Number(row.daily_budget) / 100, 2) : 0,
@@ -171,15 +171,15 @@ interface MetaInsightRow {
  */
 export async function fetchInsights(options: {
   context: MetaCallContext;
-  clientId: string;
+  accountId: string;
   startDate: string;
   endDate: string;
   campaigns: Campaign[];
 }): Promise<DailyInsight[]> {
-  const { context, clientId, startDate, endDate, campaigns } = options;
+  const { context, accountId, startDate, endDate, campaigns } = options;
 
   if (!isMetaLive(context)) {
-    return mockInsights({ clientId, startDate, endDate, campaigns });
+    return mockInsights({ accountId, startDate, endDate, campaigns });
   }
 
   const body = await graphRequest<{ data: MetaInsightRow[] }>(
@@ -205,7 +205,7 @@ export async function fetchInsights(options: {
     };
     return {
       id: insightId(row.date_start, row.campaign_id),
-      client_id: clientId,
+      client_id: accountId,
       campaign_id: row.campaign_id,
       campaign_name: row.campaign_name,
       date: row.date_start,
@@ -228,12 +228,12 @@ function countAction(
 
 /** Generates believable rows for a date range without touching the network. */
 function mockInsights(options: {
-  clientId: string;
+  accountId: string;
   startDate: string;
   endDate: string;
   campaigns: Campaign[];
 }): DailyInsight[] {
-  const { clientId, startDate, endDate, campaigns } = options;
+  const { accountId, startDate, endDate, campaigns } = options;
   const rows: DailyInsight[] = [];
   const now = new Date().toISOString();
 
@@ -255,7 +255,7 @@ function mockInsights(options: {
       };
       rows.push({
         id: insightId(date, campaign.id),
-        client_id: clientId,
+        client_id: accountId,
         campaign_id: campaign.id,
         campaign_name: campaign.name,
         date,

@@ -14,11 +14,11 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const { client_id, date_range } = validate(reportSchema, await parseJson(request));
 
-  const payload = await loadReportPayload({ caller, clientId: client_id, range: date_range });
+  const payload = await loadReportPayload({ caller, accountId: client_id, range: date_range });
   const buffer = Buffer.from(buildCsv(payload), 'utf8');
 
   const stored = await storeReport({
-    clientId: client_id,
+    accountId: client_id,
     range: date_range,
     extension: 'csv',
     buffer,

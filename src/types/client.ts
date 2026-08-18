@@ -9,7 +9,7 @@ export interface ClientSettings {
 }
 
 /**
- * `clients/{clientId}`
+ * `clients/{accountId}`
  *
  * `access_token_encrypted` and `access_pin_hash` are stripped by
  * `toPublicClient()` before anything is returned over the API.

@@ -9,23 +9,23 @@ import { assertClientAccess } from './api-auth';
 /** Loads everything a report needs, honouring the caller's client scope. */
 export async function loadReportPayload(options: {
   caller: Caller;
-  clientId: string;
+  accountId: string;
   range: { start: string; end: string };
 }): Promise<ReportPayload> {
-  const { caller, clientId, range } = options;
-  assertClientAccess(caller, clientId);
+  const { caller, accountId, range } = options;
+  assertClientAccess(caller, accountId);
 
   if (range.start > range.end) {
     throw new ApiError('VALIDATION_ERROR', 'date_range.start must be on or before date_range.end.');
   }
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   const [campaigns, insights, manualEntries] = await Promise.all([
-    listCampaigns(clientId),
-    listInsights(clientId, range.start, range.end),
-    listManualEntries(clientId, { startDate: range.start, endDate: range.end }),
+    listCampaigns(accountId),
+    listInsights(accountId, range.start, range.end),
+    listManualEntries(accountId, { startDate: range.start, endDate: range.end }),
   ]);
 
   return {
@@ -53,22 +53,22 @@ export function decodeReportToken(token: string): string | null {
   }
 }
 
-/** Client id is the second segment of `reports/{clientId}/{file}`. */
+/** Client id is the second segment of `reports/{accountId}/{file}`. */
 export function clientIdFromReportPath(path: string): string | null {
   return path.split('/')[1] ?? null;
 }
 
 /** Stores a generated report and returns the handle the browser should hit. */
 export async function storeReport(options: {
-  clientId: string;
+  accountId: string;
   range: { start: string; end: string };
   extension: 'pdf' | 'csv';
   buffer: Buffer;
   contentType: string;
 }) {
-  const { clientId, range, extension, buffer, contentType } = options;
-  const fileName = reportFileName(clientId, range, extension);
-  const path = reportStoragePath(clientId, fileName);
+  const { accountId, range, extension, buffer, contentType } = options;
+  const fileName = reportFileName(accountId, range, extension);
+  const path = reportStoragePath(accountId, fileName);
 
   const stored = await uploadFile({ path, buffer, contentType, ttlDays: 7 });
 

@@ -5,21 +5,21 @@ import { buildTrend, defaultDateRange, isValidDateKey, sumInsights } from '@/lib
 
 export const dynamic = 'force-dynamic';
 
-type Context = { params: Promise<{ clientId: string }> };
+type Context = { params: Promise<{ accountId: string }> };
 
 /**
- * GET /api/meta/insights/[clientId]?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+ * GET /api/meta/insights/[accountId]?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
  * Reads stored insights — it never calls Meta. The daily pull is Hermes' job
  * (Phase 2); this route serves whatever the last sync wrote.
  */
 export const GET = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId } = await context.params;
+  const { accountId } = await context.params;
   const caller = await requireCaller(request);
   enforceRateLimit(request, caller);
-  assertClientAccess(caller, clientId);
+  assertClientAccess(caller, accountId);
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   const url = new URL(request.url);
   const rawStart = url.searchParams.get('startDate');
@@ -34,7 +34,7 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
     throw new ApiError('VALIDATION_ERROR', 'startDate must be on or before endDate.');
   }
 
-  const insights = await listInsights(clientId, startDate, endDate, campaignId);
+  const insights = await listInsights(accountId, startDate, endDate, campaignId);
 
   return ok({
     insights,

@@ -25,12 +25,12 @@ export default function CampaignFormModal({
   open,
   onClose,
   onSaved,
-  clientId,
+  accountId,
 }: {
   open: boolean;
   onClose: () => void;
   onSaved: (result: CreateResult) => void;
-  clientId: string | null;
+  accountId: string | null;
 }) {
   const [name, setName] = useState('');
   const [objective, setObjective] = useState<CampaignObjective>('LEAD_GENERATION');
@@ -53,7 +53,7 @@ export default function CampaignFormModal({
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!clientId) return;
+    if (!accountId) return;
     setSaving(true);
     setError(null);
     setFieldErrors({});
@@ -66,7 +66,7 @@ export default function CampaignFormModal({
     }
 
     try {
-      const result = await apiPost<CreateResult>(API.campaigns.list(clientId), {
+      const result = await apiPost<CreateResult>(API.campaigns.list(accountId), {
         name: name.trim(),
         objective,
         budget_daily: numeric,
@@ -173,8 +173,8 @@ export default function CampaignFormModal({
           </div>
         </div>
 
-        {clientId ? (
-          <CreativeSelect clientId={clientId} value={creativeId} onChange={setCreativeId} />
+        {accountId ? (
+          <CreativeSelect accountId={accountId} value={creativeId} onChange={setCreativeId} />
         ) : null}
         {fieldErrors.creative_id ? (
           <p className="text-xs text-accent-danger">{fieldErrors.creative_id}</p>

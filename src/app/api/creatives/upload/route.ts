@@ -34,20 +34,20 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
 
   const file = form.get('file');
-  const clientId = String(form.get('client_id') ?? '');
+  const accountId = String(form.get('client_id') ?? '');
   const campaignId = String(form.get('campaign_id') ?? '');
   const adSetId = form.get('adset_id') ? String(form.get('adset_id')) : undefined;
 
   if (!(file instanceof File)) {
     throw new ApiError('VALIDATION_ERROR', 'A "file" field is required.');
   }
-  if (!clientId || !campaignId) {
+  if (!accountId || !campaignId) {
     throw new ApiError('VALIDATION_ERROR', 'client_id and campaign_id are required.');
   }
-  assertClientAccess(caller, clientId);
+  assertClientAccess(caller, accountId);
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new ApiError('FILE_TOO_LARGE', `Files must be under ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`, {
@@ -64,7 +64,7 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const creativeId = `crv-${randomUUID().slice(0, 8)}`;
   const fileName = sanitizeFileName(file.name);
-  const path = creativeStoragePath(clientId, creativeId, fileName);
+  const path = creativeStoragePath(accountId, creativeId, fileName);
 
   const stored = await uploadFile({
     path,
@@ -74,7 +74,7 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const creative: Creative = {
     id: creativeId,
-    client_id: clientId,
+    client_id: accountId,
     file_name: fileName,
     file_type: contentType.startsWith('video/') ? 'video' : 'image',
     content_type: contentType,

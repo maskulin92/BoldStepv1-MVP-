@@ -248,6 +248,6 @@ export function buildPdf(payload: ReportPayload): Buffer {
   return Buffer.from(doc.output('arraybuffer'));
 }
 
-export function reportFileName(clientId: string, range: { start: string; end: string }, ext: string) {
-  return `boldstep-${clientId}-${range.start}_${range.end}.${ext}`;
+export function reportFileName(accountId: string, range: { start: string; end: string }, ext: string) {
+  return `boldstep-${accountId}-${range.start}_${range.end}.${ext}`;
 }

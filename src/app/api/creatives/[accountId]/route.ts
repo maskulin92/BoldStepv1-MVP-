@@ -6,14 +6,14 @@ import { paginate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-type Context = { params: Promise<{ clientId: string }> };
+type Context = { params: Promise<{ accountId: string }> };
 
-/** GET /api/creatives/[clientId] */
+/** GET /api/creatives/[accountId] */
 export const GET = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId } = await context.params;
+  const { accountId } = await context.params;
   const caller = await requireCaller(request);
   enforceRateLimit(request, caller);
-  assertClientAccess(caller, clientId);
+  assertClientAccess(caller, accountId);
 
   const url = new URL(request.url);
   const campaignId = url.searchParams.get('campaign_id');
@@ -25,7 +25,7 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
   const page = Number(url.searchParams.get('page') ?? 1);
   const perPage = Number(url.searchParams.get('per_page') ?? 50);
 
-  const creatives = (await listCreatives(clientId, { status: statusFilter }))
+  const creatives = (await listCreatives(accountId, { status: statusFilter }))
     .filter((creative) => !campaignId || creative.campaign_id === campaignId)
     .map((creative) => ({
       ...creative,

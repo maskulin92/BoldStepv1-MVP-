@@ -18,12 +18,12 @@ export interface StoredFile {
   url_expires_at: string;
 }
 
-export function creativeStoragePath(clientId: string, creativeId: string, fileName: string): string {
-  return `creatives/${clientId}/${creativeId}-${sanitizeFileName(fileName)}`;
+export function creativeStoragePath(accountId: string, creativeId: string, fileName: string): string {
+  return `creatives/${accountId}/${creativeId}-${sanitizeFileName(fileName)}`;
 }
 
-export function reportStoragePath(clientId: string, fileName: string): string {
-  return `reports/${clientId}/${sanitizeFileName(fileName)}`;
+export function reportStoragePath(accountId: string, fileName: string): string {
+  return `reports/${accountId}/${sanitizeFileName(fileName)}`;
 }
 
 function expiryDate(days = CREATIVE_URL_TTL_DAYS): Date {

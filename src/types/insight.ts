@@ -10,7 +10,7 @@ export interface InsightMetrics {
   cpl: number;
 }
 
-/** `daily_insights/{clientId}/{date}/{campaignId}` */
+/** `daily_insights/{accountId}/{date}/{campaignId}` */
 export interface DailyInsight extends InsightMetrics {
   id: string;
   client_id: string;
@@ -30,7 +30,7 @@ export type ManualMetricType = 'leads_closed' | 'sales_value' | 'conversion_cust
  */
 export type ManualEntryStatus = 'pending_approval' | 'approved' | 'rejected';
 
-/** `manual_entries/{clientId}/{date}/{entryId}` */
+/** `manual_entries/{accountId}/{date}/{entryId}` */
 export interface ManualEntry {
   id: string;
   client_id: string;

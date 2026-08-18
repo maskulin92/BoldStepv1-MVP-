@@ -6,9 +6,9 @@ import { Megaphone, Plus, RefreshCw } from 'lucide-react';
 import Navbar from '@/components/common/Navbar';
 import Sidebar, { type OwnerSection } from '@/components/common/Sidebar';
 import ClientSelector from './ClientSelector';
-import ClientDashboard from './ClientDashboard';
-import ClientFormModal from './ClientFormModal';
-import ClientManageBar from './ClientManageBar';
+import AccountDashboard from './AccountDashboard';
+import AccountFormModal from './AccountFormModal';
+import AccountManageBar from './AccountManageBar';
 import CampaignFormModal from './CampaignFormModal';
 import DateRangeSelector from './DateRangeSelector';
 import OverviewCards from './OverviewCards';
@@ -117,14 +117,14 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
         <Navbar
           title={
             section === 'clients'
-              ? (activeClient?.name ?? 'Client accounts')
+              ? (activeClient?.name ?? 'Accounts')
               : section === 'own'
-                ? (ownerClient?.name ?? 'Own ads account')
+                ? (ownerClient?.name ?? 'Main account')
                 : 'Hermes control panel'
           }
           subtitle={
             section === 'clients'
-              ? 'Section A · monitor every client from one place'
+              ? 'Section A · monitor every account from one place'
               : section === 'own'
                 ? 'Section B · your ads plus the approval queue'
                 : 'Section C · chat, approvals, memory and settings'
@@ -137,7 +137,7 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
           {clients.error ? (
             <ErrorState message={clients.error} onRetry={() => void clients.refetch()} />
           ) : clients.loading ? (
-            <LoadingPanel label="Loading clients…" />
+            <LoadingPanel label="Loading accounts…" />
           ) : section === 'clients' ? (
             <SectionA
               client={activeClient}
@@ -168,7 +168,7 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
         </main>
       </div>
 
-      <ClientFormModal
+      <AccountFormModal
         open={clientForm !== null}
         client={clientForm === 'new' ? null : clientForm}
         onClose={() => setClientForm(null)}
@@ -182,7 +182,7 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
       <CampaignFormModal
         open={campaignFormOpen}
         onClose={() => setCampaignFormOpen(false)}
-        clientId={activeClient?.id ?? null}
+        accountId={activeClient?.id ?? null}
         onSaved={(result) => {
           setLaunchNotice({
             tone: result.launch.ok ? 'success' : 'danger',
@@ -217,18 +217,18 @@ function SectionA({
   onAdd: () => void;
   onEdit: () => void;
   onNewCampaign: () => void;
-  onDeleted: (clientId: string) => void;
+  onDeleted: (accountId: string) => void;
 }) {
   if (!client) {
     return (
       <div className="card p-6 text-center">
-        <p className="text-sm font-medium text-cream-100">No client accounts yet</p>
+        <p className="text-sm font-medium text-cream-100">No accounts yet</p>
         <p className="mx-auto mt-1.5 max-w-md text-sm text-cream-100/55">
-          Add a client to give them their own access link and reporting dashboard.
+          Add an account to give it its own access link and reporting dashboard.
         </p>
         <button type="button" className="btn-primary mx-auto mt-4" onClick={onAdd}>
           <Plus className="h-4 w-4" aria-hidden />
-          Add client
+          Add account
         </button>
       </div>
     );
@@ -236,7 +236,7 @@ function SectionA({
 
   return (
     <div className="space-y-4">
-      <ClientManageBar
+      <AccountManageBar
         client={client}
         onEdit={onEdit}
         onDeleted={onDeleted}
@@ -247,9 +247,9 @@ function SectionA({
           </button>
         }
       />
-      <ReviewQueue clientId={client.id} />
-      <ClientDashboard clientId={client.id} clientName={client.name} embedded />
-      <PendingApprovals clientId={client.id} title={`Pending approvals · ${client.name}`} />
+      <ReviewQueue accountId={client.id} />
+      <AccountDashboard accountId={client.id} clientName={client.name} embedded />
+      <PendingApprovals accountId={client.id} title={`Pending approvals · ${client.name}`} />
     </div>
   );
 }
@@ -276,8 +276,8 @@ function SectionB({
     null,
   );
 
-  const clientId = client?.id ?? null;
-  const { range, campaigns, insights, refetchAll } = useClientData(clientId, days);
+  const accountId = client?.id ?? null;
+  const { range, campaigns, insights, refetchAll } = useClientData(accountId, days);
 
   // Memoised so the identity is stable — a fresh `[]` on every render would
   // re-run the lookup map and re-render the children that receive it.
@@ -291,13 +291,13 @@ function SectionB({
   );
 
   const sync = async () => {
-    if (!clientId) return;
+    if (!accountId) return;
     setSyncing(true);
     setSyncMessage(null);
     try {
       const result = await apiPost<{ records_updated: number; mode: string; note?: string }>(
         API.meta.sync,
-        { client_id: clientId },
+        { client_id: accountId },
       );
       setSyncMessage({
         tone: 'success',
@@ -316,7 +316,7 @@ function SectionB({
     }
   };
 
-  if (!client || !clientId) {
+  if (!client || !accountId) {
     return (
       <InlineNotice tone="info">
         No owner account found. Mark one client document with `is_owner: true` to use this section.
@@ -339,7 +339,7 @@ function SectionB({
             <Megaphone className="h-4 w-4" aria-hidden />
             New campaign
           </button>
-          <ExportButtons clientId={clientId} range={range} />
+          <ExportButtons accountId={accountId} range={range} />
           <button type="button" className="btn-secondary" onClick={() => void sync()} disabled={syncing}>
             <RefreshCw className={syncing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} aria-hidden />
             {syncing ? 'Syncing…' : 'Sync Meta'}
@@ -354,7 +354,7 @@ function SectionB({
 
       <div onFocus={onApprovalsChanged}>
         <PendingApprovals
-          clientId={clientId}
+          accountId={accountId}
           title="Approval queue"
           highlightActionId={highlightActionId}
         />
@@ -375,24 +375,24 @@ function SectionB({
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <CreativeUpload
-          clientId={clientId}
+          accountId={accountId}
           campaigns={campaignList}
           onUploaded={() => setCreativeKey((key) => key + 1)}
         />
         <section className="card p-4 sm:p-5">
           <h2 className="mb-4 text-sm font-semibold text-cream-100">Creative library</h2>
-          <CreativeLibrary clientId={clientId} refreshKey={creativeKey} />
+          <CreativeLibrary accountId={accountId} refreshKey={creativeKey} />
         </section>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <ManualDataForm
-          clientId={clientId}
+          accountId={accountId}
           campaigns={campaignList}
           onSaved={() => setEntryKey((key) => key + 1)}
         />
         <EntryHistory
-          clientId={clientId}
+          accountId={accountId}
           refreshKey={entryKey}
           campaignNames={campaignNames}
         />

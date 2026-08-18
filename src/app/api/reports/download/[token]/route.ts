@@ -19,9 +19,9 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
   const path = decodeReportToken(token);
   if (!path) throw new ApiError('NOT_FOUND', 'That report link is not valid.');
 
-  const clientId = clientIdFromReportPath(path);
-  if (!clientId) throw new ApiError('NOT_FOUND', 'That report link is not valid.');
-  assertClientAccess(caller, clientId);
+  const accountId = clientIdFromReportPath(path);
+  if (!accountId) throw new ApiError('NOT_FOUND', 'That report link is not valid.');
+  assertClientAccess(caller, accountId);
 
   const fileName = path.split('/').pop() ?? 'report';
   const contentType = fileName.endsWith('.pdf') ? 'application/pdf' : 'text/csv; charset=utf-8';

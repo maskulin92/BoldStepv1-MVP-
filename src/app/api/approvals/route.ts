@@ -20,12 +20,12 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const url = new URL(request.url);
   const status = url.searchParams.get('status') ?? 'pending';
-  const clientId = url.searchParams.get('client_id') ?? undefined;
+  const accountId = url.searchParams.get('client_id') ?? undefined;
   const page = Number(url.searchParams.get('page') ?? 1);
   const perPage = Number(url.searchParams.get('per_page') ?? 50);
 
   const actions = await listPendingActions({
-    clientId,
+    accountId,
     status: status === 'all' ? undefined : status,
   });
 
@@ -44,13 +44,13 @@ export const POST = withErrorHandling(async (request: Request) => {
   enforceRateLimit(request, caller);
 
   const body = await parseJson(request);
-  const clientId = String(body.client_id ?? '');
+  const accountId = String(body.client_id ?? '');
   const campaignId = String(body.campaign_id ?? '');
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
-  const campaign = await getCampaign(clientId, campaignId);
+  const campaign = await getCampaign(accountId, campaignId);
   if (!campaign) {
     throw new ApiError('INVALID_CAMPAIGN_ID', `No campaign "${campaignId}" for this client.`);
   }
@@ -62,7 +62,7 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const action: PendingAction = {
     id: `act-${randomUUID().slice(0, 8)}`,
-    client_id: clientId,
+    client_id: accountId,
     client_name: client.name,
     from_model: body.from_model === 'claude' ? 'claude' : 'glm',
     action_type: actionType as PendingAction['action_type'],

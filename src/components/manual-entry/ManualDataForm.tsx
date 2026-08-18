@@ -12,11 +12,11 @@ import type { Campaign, ManualMetricType } from '@/types';
 
 /** Offline data entry: closed leads, sales value, custom conversions. */
 export default function ManualDataForm({
-  clientId,
+  accountId,
   campaigns,
   onSaved,
 }: {
-  clientId: string;
+  accountId: string;
   campaigns: Campaign[];
   onSaved?: () => void;
 }) {
@@ -46,7 +46,7 @@ export default function ManualDataForm({
     setSaving(true);
     try {
       await apiPost(API.manualEntry.create, {
-        client_id: clientId,
+        client_id: accountId,
         campaign_id: campaignId,
         metric_type: metricType,
         value: numeric,

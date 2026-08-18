@@ -39,24 +39,24 @@ export function dateRangeForDays(days: number): { start: string; end: string } {
  * selected window, and the creative library. Each piece keeps its own loading
  * and error state so a single failure doesn't blank the whole page.
  */
-export function useClientData(clientId: string | null, days = 7) {
+export function useClientData(accountId: string | null, days = 7) {
   const range = useMemo(() => dateRangeForDays(days), [days]);
 
   const query = `?startDate=${range.start}&endDate=${range.end}`;
 
   const client = useFirestore<{ client: PublicClient; settings: PublicClient['settings'] }>(
-    clientId ? API.clients.detail(clientId) : null,
-    [clientId],
+    accountId ? API.clients.detail(accountId) : null,
+    [accountId],
   );
 
   const campaigns = useFirestore<CampaignsResponse>(
-    clientId ? `${API.campaigns.list(clientId)}${query}` : null,
-    [clientId, days],
+    accountId ? `${API.campaigns.list(accountId)}${query}` : null,
+    [accountId, days],
   );
 
   const insights = useFirestore<InsightsResponse>(
-    clientId ? `${API.meta.insights(clientId)}${query}` : null,
-    [clientId, days],
+    accountId ? `${API.meta.insights(accountId)}${query}` : null,
+    [accountId, days],
   );
 
   const creatives = useFirestore<Creative[]>(null);

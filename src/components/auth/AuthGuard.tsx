@@ -12,20 +12,20 @@ interface AuthGuardProps {
   /** Where to send an unauthenticated visitor. */
   redirectTo: string;
   /** For client routes: the client this page belongs to. */
-  clientId?: string;
+  accountId?: string;
 }
 
 /**
  * Route-level gate. Server routes enforce the same rules independently —
  * this only avoids rendering a dashboard the API would refuse to fill.
  */
-export default function AuthGuard({ children, role, redirectTo, clientId }: AuthGuardProps) {
+export default function AuthGuard({ children, role, redirectTo, accountId }: AuthGuardProps) {
   const router = useRouter();
   const { identity, loading } = useAuth();
 
   const wrongRole = Boolean(identity && identity.role !== role);
   const wrongClient = Boolean(
-    identity && role === 'client' && clientId && identity.client?.id !== clientId,
+    identity && role === 'client' && accountId && identity.client?.id !== accountId,
   );
   const denied = !loading && (!identity || wrongRole || wrongClient);
 

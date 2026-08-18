@@ -30,7 +30,7 @@ export default function HermesChat({
   clients: PublicClient[];
   defaultClientId?: string | null;
 }) {
-  const [clientId, setClientId] = useState<string>(defaultClientId ?? clients[0]?.id ?? '');
+  const [accountId, setClientId] = useState<string>(defaultClientId ?? clients[0]?.id ?? '');
   const [messages, setMessages] = useState<HermesChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -63,7 +63,7 @@ export default function HermesChat({
     try {
       const reply = await apiPost<ChatResponse>(API.hermes.chat, {
         message,
-        client_id: clientId || undefined,
+        client_id: accountId || undefined,
         history,
       });
       setMessages((prev) => [
@@ -99,7 +99,7 @@ export default function HermesChat({
         <label className="ml-auto flex items-center gap-2 text-xs text-cream-100/50">
           <span className="sr-only sm:not-sr-only">Context</span>
           <select
-            value={clientId}
+            value={accountId}
             onChange={(event) => setClientId(event.target.value)}
             className="text-sm"
           >

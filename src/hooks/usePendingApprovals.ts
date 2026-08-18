@@ -15,15 +15,15 @@ interface DecisionResponse {
  * Pending approvals plus the decide() action. Keeps a per-action "deciding"
  * flag so only the row being acted on shows a spinner.
  */
-export function usePendingApprovals(options: { clientId?: string; status?: string } = {}) {
-  const { clientId, status = 'pending' } = options;
+export function usePendingApprovals(options: { accountId?: string; status?: string } = {}) {
+  const { accountId, status = 'pending' } = options;
 
   const params = new URLSearchParams();
-  if (clientId) params.set('client_id', clientId);
+  if (accountId) params.set('client_id', accountId);
   params.set('status', status);
 
   const query = useFirestoreList<PendingAction>(`${API.approvals.list}?${params.toString()}`, [
-    clientId,
+    accountId,
     status,
   ]);
 

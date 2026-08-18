@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ClientDashboard from '@/components/dashboard/ClientDashboard';
+import AccountDashboard from '@/components/dashboard/AccountDashboard';
 import { LoadingPanel } from '@/components/common/LoadingSpinner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -27,5 +27,5 @@ export default function ClientDashboardPage({ linkId }: { linkId: string }) {
   if (loading) return <LoadingPanel label="Checking your access code…" />;
   if (denied || !session) return <LoadingPanel label="Redirecting…" />;
 
-  return <ClientDashboard clientId={session.id} clientName={session.name} />;
+  return <AccountDashboard accountId={session.id} clientName={session.name} />;
 }

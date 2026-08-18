@@ -22,19 +22,19 @@ const ACTION_ICONS: Record<ActionType, React.ReactNode> = {
  * decision is confirmed in a dialog first, since it changes a live ad account.
  */
 export default function PendingApprovals({
-  clientId,
+  accountId,
   status = 'pending',
   title = 'Pending approvals',
   highlightActionId,
 }: {
-  clientId?: string;
+  accountId?: string;
   status?: string;
   title?: string;
   /** Action id from a Telegram deep link — opens its dialog immediately. */
   highlightActionId?: string | null;
 }) {
   const { actions, loading, error, refetch, decide, decidingId, decisionError } =
-    usePendingApprovals({ clientId, status });
+    usePendingApprovals({ accountId, status });
 
   const [pendingDecision, setPendingDecision] = useState<{
     action: PendingAction;

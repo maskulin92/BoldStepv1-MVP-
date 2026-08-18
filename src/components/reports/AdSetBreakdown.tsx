@@ -23,17 +23,17 @@ interface CampaignDetail {
 
 /** Ad-set level drill-down for one campaign. */
 export default function AdSetBreakdown({
-  clientId,
+  accountId,
   campaignId,
 }: {
-  clientId: string;
+  accountId: string;
   campaignId: string;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const { data, loading, error, refetch } = useFirestore<CampaignDetail>(
-    API.campaigns.detail(clientId, campaignId),
-    [clientId, campaignId],
+    API.campaigns.detail(accountId, campaignId),
+    [accountId, campaignId],
   );
 
   if (loading) return <LoadingPanel label="Loading ad sets…" />;

@@ -8,20 +8,20 @@ import { randomUUID } from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
 
-type Context = { params: Promise<{ clientId: string }> };
+type Context = { params: Promise<{ accountId: string }> };
 
 /**
- * GET /api/campaigns/[clientId]?startDate=&endDate=
+ * GET /api/campaigns/[accountId]?startDate=&endDate=
  * Campaigns with per-campaign totals for the window, plus a client summary.
  */
 export const GET = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId } = await context.params;
+  const { accountId } = await context.params;
   const caller = await requireCaller(request);
   enforceRateLimit(request, caller);
-  assertClientAccess(caller, clientId);
+  assertClientAccess(caller, accountId);
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   const url = new URL(request.url);
   const fallback = defaultDateRange(Number(url.searchParams.get('days') ?? 7));
@@ -33,8 +33,8 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
     : fallback.end;
 
   const [campaigns, insights] = await Promise.all([
-    listCampaigns(clientId),
-    listInsights(clientId, startDate, endDate),
+    listCampaigns(accountId),
+    listInsights(accountId, startDate, endDate),
   ]);
 
   const withStats = campaigns.map((campaign) => ({
@@ -50,7 +50,7 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
 });
 
 /**
- * POST /api/campaigns/[clientId]  { name, objective, budget_daily, creative_id? }
+ * POST /api/campaigns/[accountId]  { name, objective, budget_daily, creative_id? }
  * Owner only. Creates the campaign and launches it on Meta (mock-mode when
  * credentials are absent). A selected creative must exist, belong to this
  * client and be APPROVED — anything else is a validation error, so the
@@ -61,13 +61,13 @@ export const POST = withErrorHandling(async (request: Request, context: Context)
   requirePermission(caller, 'write');
   enforceRateLimit(request, caller, 30, 'campaign-create');
 
-  const { clientId } = await context.params;
-  assertClientAccess(caller, clientId);
+  const { accountId } = await context.params;
+  assertClientAccess(caller, accountId);
 
   const input = validate(createCampaignSchema, await parseJson(request));
 
-  const client = await getClient(clientId);
-  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${clientId}".`);
+  const client = await getClient(accountId);
+  if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${accountId}".`);
 
   let creative: Awaited<ReturnType<typeof getCreative>> = null;
   if (input.creative_id) {
@@ -75,7 +75,7 @@ export const POST = withErrorHandling(async (request: Request, context: Context)
     if (!creative) {
       throw new ApiError('CREATIVE_NOT_FOUND', 'The selected creative no longer exists.');
     }
-    if (creative.client_id !== clientId) {
+    if (creative.client_id !== accountId) {
       throw new ApiError('FORBIDDEN', 'The selected creative belongs to another client.');
     }
     if (creative.status !== 'approved') {
@@ -97,7 +97,7 @@ export const POST = withErrorHandling(async (request: Request, context: Context)
   const now = new Date().toISOString();
   const campaign = await createCampaign({
     id: `cmp-${randomUUID().slice(0, 8)}`,
-    client_id: clientId,
+    client_id: accountId,
     name: input.name,
     objective: input.objective,
     status: 'PAUSED',

@@ -18,7 +18,7 @@ import type { PrimaryGoal, PublicClient } from '@/types';
  * existing one when filled in — so saving a name change never silently
  * invalidates the link the client is already using.
  */
-export default function ClientFormModal({
+export default function AccountFormModal({
   open,
   onClose,
   onSaved,
@@ -118,11 +118,11 @@ export default function ClientFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? 'Edit client' : 'Add client'}
+      title={isEdit ? 'Edit account' : 'Add account'}
       description={
         isEdit
           ? 'Changes apply immediately. Leave the PIN blank to keep the current one.'
-          : 'Creates a new client account with its own access link and code.'
+          : 'Creates a new account with its own access link and code.'
       }
       footer={
         <>
@@ -136,7 +136,7 @@ export default function ClientFormModal({
             disabled={saving || !name.trim() || !linkIdValue.trim() || (!isEdit && pin.length !== 6)}
           >
             {saving ? <LoadingSpinner size="sm" /> : null}
-            {isEdit ? 'Save changes' : 'Create client'}
+            {isEdit ? 'Save changes' : 'Create account'}
           </button>
         </>
       }

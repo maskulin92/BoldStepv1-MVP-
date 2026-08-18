@@ -26,19 +26,19 @@ function sumAdSetMetrics(insights: DailyInsight[], adSetId: string) {
   return deriveRates({ ...totals, spend: round(totals.spend, 2) });
 }
 
-type Context = { params: Promise<{ clientId: string; campaignId: string }> };
+type Context = { params: Promise<{ accountId: string; campaignId: string }> };
 
 /**
- * GET /api/campaigns/[clientId]/[campaignId]
+ * GET /api/campaigns/[accountId]/[campaignId]
  * Full drill-down: ad sets, 7d and 30d insight windows, open actions.
  */
 export const GET = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId, campaignId } = await context.params;
+  const { accountId, campaignId } = await context.params;
   const caller = await requireCaller(request);
   enforceRateLimit(request, caller);
-  assertClientAccess(caller, clientId);
+  assertClientAccess(caller, accountId);
 
-  const campaign = await getCampaign(clientId, campaignId);
+  const campaign = await getCampaign(accountId, campaignId);
   if (!campaign) {
     throw new ApiError('INVALID_CAMPAIGN_ID', `No campaign "${campaignId}" for this client.`);
   }
@@ -47,9 +47,9 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
   const range30 = defaultDateRange(30);
 
   const [adSets, insights30, actions] = await Promise.all([
-    listAdSets(clientId, campaignId),
-    listInsights(clientId, range30.start, range30.end, campaignId),
-    caller.role === 'owner' ? listPendingActions({ clientId }) : Promise.resolve([]),
+    listAdSets(accountId, campaignId),
+    listInsights(accountId, range30.start, range30.end, campaignId),
+    caller.role === 'owner' ? listPendingActions({ accountId }) : Promise.resolve([]),
   ]);
 
   const insights7 = insights30.filter((i) => i.date >= range7.start);

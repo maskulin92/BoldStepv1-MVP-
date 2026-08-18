@@ -18,17 +18,17 @@ interface CreativeRow extends Creative {
  * the campaign can launch without one.
  */
 export default function CreativeSelect({
-  clientId,
+  accountId,
   value,
   onChange,
 }: {
-  clientId: string;
+  accountId: string;
   value: string;
   onChange: (creativeId: string) => void;
 }) {
   const { items, loading, error } = useFirestoreList<CreativeRow>(
-    `${API.creatives.list(clientId)}?status=approved`,
-    [clientId],
+    `${API.creatives.list(accountId)}?status=approved`,
+    [accountId],
   );
 
   const selected = useMemo(

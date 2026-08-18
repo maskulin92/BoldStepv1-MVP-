@@ -9,13 +9,13 @@ export type OwnerSection = 'clients' | 'own' | 'hermes';
 const SECTIONS: { id: OwnerSection; label: string; hint: string; icon: React.ReactNode }[] = [
   {
     id: 'clients',
-    label: 'Client Accounts',
-    hint: 'Monitor every client',
+    label: 'Your Accounts',
+    hint: 'Monitor every account',
     icon: <Building2 className="h-4 w-4" aria-hidden />,
   },
   {
     id: 'own',
-    label: 'Own Ads Account',
+    label: 'Main Account',
     hint: 'Boldstep house ads',
     icon: <LayoutDashboard className="h-4 w-4" aria-hidden />,
   },

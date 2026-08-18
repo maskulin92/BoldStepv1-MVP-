@@ -11,11 +11,11 @@ import { cn, formatBytes } from '@/lib/utils';
 import type { Campaign } from '@/types';
 
 export default function CreativeUpload({
-  clientId,
+  accountId,
   campaigns,
   onUploaded,
 }: {
-  clientId: string;
+  accountId: string;
   campaigns: Campaign[];
   onUploaded?: () => void;
 }) {
@@ -54,7 +54,7 @@ export default function CreativeUpload({
     try {
       const form = new FormData();
       form.append('file', file);
-      form.append('client_id', clientId);
+      form.append('client_id', accountId);
       form.append('campaign_id', campaignId);
 
       await apiUpload(API.creatives.upload, form);

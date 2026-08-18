@@ -33,12 +33,12 @@ const TABS: { id: Tab; label: string; icon: typeof BarChart3 }[] = [
  * submissions go through the owner's review queue before they count.
  * The same component backs Section A of the owner dashboard, minus the chrome.
  */
-export default function ClientDashboard({
-  clientId,
+export default function AccountDashboard({
+  accountId,
   clientName,
   embedded = false,
 }: {
-  clientId: string;
+  accountId: string;
   clientName?: string;
   /** True when rendered inside the owner shell (no navbar, no logout). */
   embedded?: boolean;
@@ -49,9 +49,9 @@ export default function ClientDashboard({
   const [days, setDays] = useState(7);
   const [entryRefresh, setEntryRefresh] = useState(0);
 
-  const { range, client, campaigns, insights, loading, refetchAll } = useClientData(clientId, days);
+  const { range, client, campaigns, insights, loading, refetchAll } = useClientData(accountId, days);
 
-  const name = clientName ?? client.data?.client.name ?? 'Client dashboard';
+  const name = clientName ?? client.data?.client.name ?? 'Account dashboard';
   const goalLabel = useMemo(() => {
     const goal = client.data?.client.primary_goal;
     if (goal === 'conversions') return 'Conversions';
@@ -101,7 +101,7 @@ export default function ClientDashboard({
                   setDays(nextDays);
                 }}
               />
-              <ExportButtons clientId={clientId} range={range} />
+              <ExportButtons accountId={accountId} range={range} />
             </>
           )}
           <button
@@ -147,7 +147,7 @@ export default function ClientDashboard({
 
             <section className="card p-4 sm:p-5">
               <h2 className="mb-4 text-sm font-semibold text-cream-100">Creative library</h2>
-              <CreativeLibrary clientId={clientId} />
+              <CreativeLibrary accountId={accountId} />
             </section>
           </>
         ))}
@@ -155,7 +155,7 @@ export default function ClientDashboard({
       {tab === 'upload' && (
         <>
           <CreativeUpload
-            clientId={clientId}
+            accountId={accountId}
             campaigns={campaignList}
             onUploaded={() => setEntryRefresh((n) => n + 1)}
           />
@@ -164,7 +164,7 @@ export default function ClientDashboard({
             <p className="mb-4 text-xs text-cream-100/45">
               Approved creatives. New uploads appear after review.
             </p>
-            <CreativeLibrary clientId={clientId} refreshKey={entryRefresh} />
+            <CreativeLibrary accountId={accountId} refreshKey={entryRefresh} />
           </section>
         </>
       )}
@@ -172,12 +172,12 @@ export default function ClientDashboard({
       {tab === 'entry' && (
         <>
           <ManualDataForm
-            clientId={clientId}
+            accountId={accountId}
             campaigns={campaignList}
             onSaved={() => setEntryRefresh((n) => n + 1)}
           />
           <EntryHistory
-            clientId={clientId}
+            accountId={accountId}
             refreshKey={entryRefresh}
             campaignNames={campaignNames}
           />

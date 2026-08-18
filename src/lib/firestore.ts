@@ -53,11 +53,11 @@ export async function listClients(): Promise<Client[]> {
   return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Client, 'id'>) }));
 }
 
-export async function getClient(clientId: string): Promise<Client | null> {
+export async function getClient(accountId: string): Promise<Client | null> {
   const db = getDb();
-  if (!db) return mockStore().clients.find((c) => c.id === clientId) ?? null;
+  if (!db) return mockStore().clients.find((c) => c.id === accountId) ?? null;
 
-  const doc = await db.collection(COLLECTIONS.clients).doc(clientId).get();
+  const doc = await db.collection(COLLECTIONS.clients).doc(accountId).get();
   if (!doc.exists) return null;
   return { id: doc.id, ...(doc.data() as Omit<Client, 'id'>) };
 }
@@ -98,7 +98,7 @@ export async function isLinkIdTaken(linkId: string, exceptClientId?: string): Pr
   return snapshot.docs.some((doc) => doc.id !== exceptClientId);
 }
 
-export async function createClient(client: Client): Promise<Client> {
+export async function createAccount(client: Client): Promise<Client> {
   const db = getDb();
   if (!db) {
     mockStore().clients.push(client);
@@ -118,7 +118,7 @@ export async function createClient(client: Client): Promise<Client> {
  * picked up by `collectionGroup` queries. So each subcollection is drained
  * explicitly, then the stored files, then the client document itself.
  */
-export async function deleteClient(clientId: string): Promise<{
+export async function deleteAccount(accountId: string): Promise<{
   deleted_documents: number;
   deleted_files: boolean;
 }> {
@@ -134,13 +134,13 @@ export async function deleteClient(clientId: string): Promise<{
       store.creatives.length +
       store.manualEntries.length;
 
-    store.campaigns = store.campaigns.filter((c) => c.client_id !== clientId);
-    store.adSets = store.adSets.filter((a) => a.client_id !== clientId);
-    store.insights = store.insights.filter((i) => i.client_id !== clientId);
-    store.actions = store.actions.filter((a) => a.client_id !== clientId);
-    store.creatives = store.creatives.filter((c) => c.client_id !== clientId);
-    store.manualEntries = store.manualEntries.filter((e) => e.client_id !== clientId);
-    store.clients = store.clients.filter((c) => c.id !== clientId);
+    store.campaigns = store.campaigns.filter((c) => c.client_id !== accountId);
+    store.adSets = store.adSets.filter((a) => a.client_id !== accountId);
+    store.insights = store.insights.filter((i) => i.client_id !== accountId);
+    store.actions = store.actions.filter((a) => a.client_id !== accountId);
+    store.creatives = store.creatives.filter((c) => c.client_id !== accountId);
+    store.manualEntries = store.manualEntries.filter((e) => e.client_id !== accountId);
+    store.clients = store.clients.filter((c) => c.id !== accountId);
 
     const after =
       store.campaigns.length +
@@ -151,7 +151,7 @@ export async function deleteClient(clientId: string): Promise<{
       store.manualEntries.length;
 
     for (const key of [...store.files.keys()]) {
-      if (key.includes(`/${clientId}/`)) store.files.delete(key);
+      if (key.includes(`/${accountId}/`)) store.files.delete(key);
     }
 
     return { deleted_documents: before - after + 1, deleted_files: true };
@@ -168,13 +168,13 @@ export async function deleteClient(clientId: string): Promise<{
 
   let deleted = 0;
   for (const [parent, child] of parents) {
-    const parentRef = db.collection(parent).doc(clientId);
+    const parentRef = db.collection(parent).doc(accountId);
     deleted += await drainCollection(parentRef.collection(child));
     await parentRef.delete();
     deleted += 1;
   }
 
-  await db.collection(COLLECTIONS.clients).doc(clientId).delete();
+  await db.collection(COLLECTIONS.clients).doc(accountId).delete();
   deleted += 1;
 
   // Best effort: a storage failure must not leave the database half-deleted.
@@ -183,13 +183,13 @@ export async function deleteClient(clientId: string): Promise<{
     const bucket = getBucket();
     if (bucket) {
       await Promise.all([
-        bucket.deleteFiles({ prefix: `creatives/${clientId}/` }),
-        bucket.deleteFiles({ prefix: `reports/${clientId}/` }),
+        bucket.deleteFiles({ prefix: `creatives/${accountId}/` }),
+        bucket.deleteFiles({ prefix: `reports/${accountId}/` }),
       ]);
       filesDeleted = true;
     }
   } catch (error) {
-    console.error(`[boldstep] Could not delete stored files for "${clientId}":`, error);
+    console.error(`[boldstep] Could not delete stored files for "${accountId}":`, error);
   }
 
   return { deleted_documents: deleted, deleted_files: filesDeleted };
@@ -218,19 +218,19 @@ async function drainCollection(
 }
 
 export async function updateClient(
-  clientId: string,
+  accountId: string,
   patch: Partial<Omit<Client, 'id'>>,
 ): Promise<Client | null> {
   const db = getDb();
   if (!db) {
     const store = mockStore();
-    const index = store.clients.findIndex((c) => c.id === clientId);
+    const index = store.clients.findIndex((c) => c.id === accountId);
     if (index === -1) return null;
     store.clients[index] = { ...store.clients[index], ...patch };
     return store.clients[index];
   }
 
-  const ref = db.collection(COLLECTIONS.clients).doc(clientId);
+  const ref = db.collection(COLLECTIONS.clients).doc(accountId);
   const existing = await ref.get();
   if (!existing.exists) return null;
   await ref.set(clean(patch as Doc), { merge: true });
@@ -240,29 +240,29 @@ export async function updateClient(
 
 /* ----------------------------------------------------------- campaigns */
 
-export async function listCampaigns(clientId: string): Promise<Campaign[]> {
+export async function listCampaigns(accountId: string): Promise<Campaign[]> {
   const db = getDb();
-  if (!db) return mockStore().campaigns.filter((c) => c.client_id === clientId);
+  if (!db) return mockStore().campaigns.filter((c) => c.client_id === accountId);
 
   const snapshot = await db
     .collection(COLLECTIONS.campaigns)
-    .doc(clientId)
+    .doc(accountId)
     .collection(COLLECTIONS.campaignItems)
     .get();
   return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<Campaign, 'id'>) }));
 }
 
-export async function getCampaign(clientId: string, campaignId: string): Promise<Campaign | null> {
+export async function getCampaign(accountId: string, campaignId: string): Promise<Campaign | null> {
   const db = getDb();
   if (!db) {
     return (
-      mockStore().campaigns.find((c) => c.client_id === clientId && c.id === campaignId) ?? null
+      mockStore().campaigns.find((c) => c.client_id === accountId && c.id === campaignId) ?? null
     );
   }
 
   const doc = await db
     .collection(COLLECTIONS.campaigns)
-    .doc(clientId)
+    .doc(accountId)
     .collection(COLLECTIONS.campaignItems)
     .doc(campaignId)
     .get();
@@ -286,12 +286,12 @@ export async function createCampaign(campaign: Campaign): Promise<Campaign> {
   return campaign;
 }
 
-export async function upsertCampaigns(clientId: string, campaigns: Campaign[]): Promise<number> {  const db = getDb();
+export async function upsertCampaigns(accountId: string, campaigns: Campaign[]): Promise<number> {  const db = getDb();
   if (!db) {
     const store = mockStore();
     for (const campaign of campaigns) {
       const index = store.campaigns.findIndex(
-        (c) => c.client_id === clientId && c.id === campaign.id,
+        (c) => c.client_id === accountId && c.id === campaign.id,
       );
       if (index === -1) store.campaigns.push(campaign);
       else store.campaigns[index] = { ...store.campaigns[index], ...campaign };
@@ -299,8 +299,8 @@ export async function upsertCampaigns(clientId: string, campaigns: Campaign[]): 
     return campaigns.length;
   }
 
-  const parent = db.collection(COLLECTIONS.campaigns).doc(clientId);
-  await parent.set({ client_id: clientId }, { merge: true });
+  const parent = db.collection(COLLECTIONS.campaigns).doc(accountId);
+  await parent.set({ client_id: accountId }, { merge: true });
   const batch = db.batch();
   for (const campaign of campaigns) {
     batch.set(parent.collection(COLLECTIONS.campaignItems).doc(campaign.id), clean(campaign as unknown as Doc), {
@@ -312,14 +312,14 @@ export async function upsertCampaigns(clientId: string, campaigns: Campaign[]): 
 }
 
 export async function updateCampaign(
-  clientId: string,
+  accountId: string,
   campaignId: string,
   patch: Partial<Campaign>,
 ): Promise<Campaign | null> {
   const db = getDb();
   if (!db) {
     const store = mockStore();
-    const index = store.campaigns.findIndex((c) => c.client_id === clientId && c.id === campaignId);
+    const index = store.campaigns.findIndex((c) => c.client_id === accountId && c.id === campaignId);
     if (index === -1) return null;
     store.campaigns[index] = { ...store.campaigns[index], ...patch };
     return store.campaigns[index];
@@ -327,7 +327,7 @@ export async function updateCampaign(
 
   const ref = db
     .collection(COLLECTIONS.campaigns)
-    .doc(clientId)
+    .doc(accountId)
     .collection(COLLECTIONS.campaignItems)
     .doc(campaignId);
   const existing = await ref.get();
@@ -339,17 +339,17 @@ export async function updateCampaign(
 
 /* ------------------------------------------------------------- ad sets */
 
-export async function listAdSets(clientId: string, campaignId?: string): Promise<AdSet[]> {
+export async function listAdSets(accountId: string, campaignId?: string): Promise<AdSet[]> {
   const db = getDb();
   if (!db) {
     return mockStore().adSets.filter(
-      (a) => a.client_id === clientId && (!campaignId || a.campaign_id === campaignId),
+      (a) => a.client_id === accountId && (!campaignId || a.campaign_id === campaignId),
     );
   }
 
   const base = db
     .collection(COLLECTIONS.adSets)
-    .doc(clientId)
+    .doc(accountId)
     .collection(COLLECTIONS.adSetItems);
   const snapshot = campaignId
     ? await base.where('campaign_id', '==', campaignId).get()
@@ -357,20 +357,20 @@ export async function listAdSets(clientId: string, campaignId?: string): Promise
   return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<AdSet, 'id'>) }));
 }
 
-export async function upsertAdSets(clientId: string, adSets: AdSet[]): Promise<number> {
+export async function upsertAdSets(accountId: string, adSets: AdSet[]): Promise<number> {
   const db = getDb();
   if (!db) {
     const store = mockStore();
     for (const adSet of adSets) {
-      const index = store.adSets.findIndex((a) => a.client_id === clientId && a.id === adSet.id);
+      const index = store.adSets.findIndex((a) => a.client_id === accountId && a.id === adSet.id);
       if (index === -1) store.adSets.push(adSet);
       else store.adSets[index] = { ...store.adSets[index], ...adSet };
     }
     return adSets.length;
   }
 
-  const parent = db.collection(COLLECTIONS.adSets).doc(clientId);
-  await parent.set({ client_id: clientId }, { merge: true });
+  const parent = db.collection(COLLECTIONS.adSets).doc(accountId);
+  await parent.set({ client_id: accountId }, { merge: true });
   const batch = db.batch();
   for (const adSet of adSets) {
     batch.set(parent.collection(COLLECTIONS.adSetItems).doc(adSet.id), clean(adSet as unknown as Doc), {
@@ -384,7 +384,7 @@ export async function upsertAdSets(clientId: string, adSets: AdSet[]): Promise<n
 /* ------------------------------------------------------------ insights */
 
 export async function listInsights(
-  clientId: string,
+  accountId: string,
   startDate: string,
   endDate: string,
   campaignId?: string,
@@ -394,7 +394,7 @@ export async function listInsights(
     return mockStore()
       .insights.filter(
         (i) =>
-          i.client_id === clientId &&
+          i.client_id === accountId &&
           i.date >= startDate &&
           i.date <= endDate &&
           (!campaignId || i.campaign_id === campaignId),
@@ -404,7 +404,7 @@ export async function listInsights(
 
   let query = db
     .collection(COLLECTIONS.dailyInsights)
-    .doc(clientId)
+    .doc(accountId)
     .collection(COLLECTIONS.insightItems)
     .where('date', '>=', startDate)
     .where('date', '<=', endDate);
@@ -417,7 +417,7 @@ export async function listInsights(
 }
 
 export async function upsertInsights(
-  clientId: string,
+  accountId: string,
   insights: DailyInsight[],
 ): Promise<number> {
   const db = getDb();
@@ -425,7 +425,7 @@ export async function upsertInsights(
     const store = mockStore();
     for (const insight of insights) {
       const index = store.insights.findIndex(
-        (i) => i.client_id === clientId && i.id === insight.id,
+        (i) => i.client_id === accountId && i.id === insight.id,
       );
       if (index === -1) store.insights.push(insight);
       else store.insights[index] = { ...store.insights[index], ...insight };
@@ -433,8 +433,8 @@ export async function upsertInsights(
     return insights.length;
   }
 
-  const parent = db.collection(COLLECTIONS.dailyInsights).doc(clientId);
-  await parent.set({ client_id: clientId }, { merge: true });
+  const parent = db.collection(COLLECTIONS.dailyInsights).doc(accountId);
+  await parent.set({ client_id: accountId }, { merge: true });
 
   // Firestore caps a batch at 500 writes.
   let written = 0;
@@ -459,24 +459,24 @@ export async function upsertInsights(
 /* ------------------------------------------------------ pending actions */
 
 export async function listPendingActions(options: {
-  clientId?: string;
+  accountId?: string;
   status?: string;
 }): Promise<PendingAction[]> {
-  const { clientId, status } = options;
+  const { accountId, status } = options;
   const db = getDb();
 
   if (!db) {
     return mockStore()
       .actions.filter(
-        (a) => (!clientId || a.client_id === clientId) && (!status || a.status === status),
+        (a) => (!accountId || a.client_id === accountId) && (!status || a.status === status),
       )
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 
-  const snapshot = clientId
+  const snapshot = accountId
     ? await db
         .collection(COLLECTIONS.pendingActions)
-        .doc(clientId)
+        .doc(accountId)
         .collection(COLLECTIONS.actionItems)
         .get()
     : await db.collectionGroup(COLLECTIONS.actionItems).get();
@@ -544,7 +544,7 @@ export async function updatePendingAction(
 /* ------------------------------------------------------ manual entries */
 
 export async function listManualEntries(
-  clientId: string,
+  accountId: string,
   options: {
     date?: string;
     startDate?: string;
@@ -566,13 +566,13 @@ export async function listManualEntries(
 
   if (!db) {
     return mockStore()
-      .manualEntries.filter((e) => e.client_id === clientId && matches(e))
+      .manualEntries.filter((e) => e.client_id === accountId && matches(e))
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 
   const snapshot = await db
     .collection(COLLECTIONS.manualEntries)
-    .doc(clientId)
+    .doc(accountId)
     .collection(COLLECTIONS.entryItems)
     .get();
   return snapshot.docs
@@ -589,9 +589,9 @@ export async function createManualEntries(entries: ManualEntry[]): Promise<Manua
     return entries;
   }
 
-  const clientId = entries[0].client_id;
-  const parent = db.collection(COLLECTIONS.manualEntries).doc(clientId);
-  await parent.set({ client_id: clientId }, { merge: true });
+  const accountId = entries[0].client_id;
+  const parent = db.collection(COLLECTIONS.manualEntries).doc(accountId);
+  await parent.set({ client_id: accountId }, { merge: true });
   const batch = db.batch();
   for (const entry of entries) {
     batch.set(
@@ -645,7 +645,7 @@ export async function updateManualEntry(
 /* ---------------------------------------------------------- creatives */
 
 export async function listCreatives(
-  clientId: string,
+  accountId: string,
   options: { status?: Creative['status'] } = {},
 ): Promise<Creative[]> {
   const { status } = options;
@@ -654,13 +654,13 @@ export async function listCreatives(
 
   if (!db) {
     return mockStore()
-      .creatives.filter((c) => c.client_id === clientId && matches(c))
+      .creatives.filter((c) => c.client_id === accountId && matches(c))
       .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at));
   }
 
   const snapshot = await db
     .collection(COLLECTIONS.creatives)
-    .doc(clientId)
+    .doc(accountId)
     .collection(COLLECTIONS.creativeItems)
     .get();
   return snapshot.docs
@@ -701,7 +701,7 @@ export async function createCreative(creative: Creative): Promise<Creative> {
 
 export async function updateCreative(
   creativeId: string,
-  clientId: string,
+  accountId: string,
   patch: Partial<Creative>,
 ): Promise<Creative | null> {
   const db = getDb();
@@ -715,7 +715,7 @@ export async function updateCreative(
 
   const ref = db
     .collection(COLLECTIONS.creatives)
-    .doc(clientId)
+    .doc(accountId)
     .collection(COLLECTIONS.creativeItems)
     .doc(creativeId);
   await ref.set(clean(patch as Doc), { merge: true });

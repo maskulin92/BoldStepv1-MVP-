@@ -4,7 +4,7 @@ export type CampaignStatus = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 
 export type AdSetStatus = 'ACTIVE' | 'PAUSED';
 
-/** `campaigns/{clientId}/items/{campaignId}` */
+/** `campaigns/{accountId}/items/{campaignId}` */
 export interface Campaign {
   id: string;
   client_id: string;
@@ -32,7 +32,7 @@ export interface AdSetTargeting {
   interests: string[];
 }
 
-/** `ad_sets/{clientId}/{campaignId}/{adSetId}` */
+/** `ad_sets/{accountId}/{campaignId}/{adSetId}` */
 export interface AdSet {
   id: string;
   client_id: string;

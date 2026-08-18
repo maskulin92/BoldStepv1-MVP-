@@ -6,7 +6,7 @@ export type CreativeFileType = 'image' | 'video';
  */
 export type CreativeStatus = 'pending_review' | 'approved' | 'rejected';
 
-/** `creatives/{clientId}/items/{creativeId}` */
+/** `creatives/{accountId}/items/{creativeId}` */
 export interface Creative {
   id: string;
   client_id: string;

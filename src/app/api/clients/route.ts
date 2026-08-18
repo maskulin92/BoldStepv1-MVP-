@@ -1,9 +1,9 @@
 import { ApiError, created, list, parseJson, withErrorHandling } from '@/lib/api-response';
 import { enforceRateLimit, requireCaller, requireOwner, requirePermission } from '@/lib/api-auth';
-import { createClient, isLinkIdTaken, listClients, toPublicClient } from '@/lib/firestore';
+import { createAccount, isLinkIdTaken, listClients, toPublicClient } from '@/lib/firestore';
 import { encryptToken, hashPin } from '@/lib/auth';
 import { paginate, slugify } from '@/lib/utils';
-import { createClientSchema, validate } from '@/lib/validation';
+import { createAccountSchema, validate } from '@/lib/validation';
 import type { Client } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -40,7 +40,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   requirePermission(caller, 'write');
   enforceRateLimit(request, caller, 30, 'clients-write');
 
-  const input = validate(createClientSchema, await parseJson(request));
+  const input = validate(createAccountSchema, await parseJson(request));
 
   if (await isLinkIdTaken(input.link_id)) {
     throw new ApiError(
@@ -72,7 +72,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     },
   };
 
-  await createClient(client);
+  await createAccount(client);
 
   return created({
     client: toPublicClient(client),

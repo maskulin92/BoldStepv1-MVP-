@@ -137,9 +137,9 @@ export function requirePermission(caller: Caller, permission: Permission): void 
  * Clients may only ever touch their own data; the owner may touch anyone's.
  * Every client-scoped route funnels through here.
  */
-export function assertClientAccess(caller: Caller, clientId: string): void {
+export function assertClientAccess(caller: Caller, accountId: string): void {
   if (caller.role === 'owner') return;
-  if (caller.client_id !== clientId) {
+  if (caller.client_id !== accountId) {
     throw new ApiError('FORBIDDEN', 'You do not have access to this client.');
   }
 }

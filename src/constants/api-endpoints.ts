@@ -9,14 +9,14 @@ export const API = {
   },
   clients: {
     list: '/api/clients',
-    detail: (clientId: string) => `/api/clients/${clientId}`,
+    detail: (accountId: string) => `/api/clients/${accountId}`,
   },
   campaigns: {
-    list: (clientId: string) => `/api/campaigns/${clientId}`,
-    detail: (clientId: string, campaignId: string) => `/api/campaigns/${clientId}/${campaignId}`,
+    list: (accountId: string) => `/api/campaigns/${accountId}`,
+    detail: (accountId: string, campaignId: string) => `/api/campaigns/${accountId}/${campaignId}`,
   },
   meta: {
-    insights: (clientId: string) => `/api/meta/insights/${clientId}`,
+    insights: (accountId: string) => `/api/meta/insights/${accountId}`,
     sync: '/api/meta/sync',
   },
   approvals: {
@@ -31,13 +31,13 @@ export const API = {
   },
   creatives: {
     upload: '/api/creatives/upload',
-    list: (clientId: string) => `/api/creatives/${clientId}`,
+    list: (accountId: string) => `/api/creatives/${accountId}`,
     download: (creativeId: string) => `/api/creatives/download/${creativeId}`,
     review: (creativeId: string) => `/api/creatives/review/${creativeId}`,
   },
   manualEntry: {
     create: '/api/manual-entry',
-    list: (clientId: string) => `/api/manual-entry/${clientId}`,
+    list: (accountId: string) => `/api/manual-entry/${accountId}`,
     review: (entryId: string) => `/api/manual-entry/review/${entryId}`,
   },
   reports: {
@@ -49,8 +49,8 @@ export const API = {
     verifyKey: '/api/integrations/auth/verify',
     registerWebhook: '/api/integrations/webhooks/register',
     listWebhooks: '/api/integrations/webhooks/list',
-    exportCampaigns: (clientId: string) => `/api/integrations/export/campaigns/${clientId}`,
-    exportInsights: (clientId: string) => `/api/integrations/export/insights/${clientId}`,
+    exportCampaigns: (accountId: string) => `/api/integrations/export/campaigns/${accountId}`,
+    exportInsights: (accountId: string) => `/api/integrations/export/insights/${accountId}`,
     syncCrm: '/api/integrations/sync/crm',
     syncConversions: '/api/integrations/sync/conversions',
   },

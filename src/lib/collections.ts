@@ -1,7 +1,7 @@
 /**
  * Firestore path map.
  *
- * The brief writes paths like `campaigns/{clientId}/{campaignId}`. Firestore
+ * The brief writes paths like `campaigns/{accountId}/{campaignId}`. Firestore
  * alternates collection/document segments, so a per-client subcollection needs
  * a name of its own. Each subcollection gets a DISTINCT name so that
  * `collectionGroup()` queries (e.g. "every pending action across all clients")

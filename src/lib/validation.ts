@@ -56,7 +56,7 @@ const clientSettingsSchema = z.object({
   notification_channel: z.literal('telegram').optional(),
 });
 
-export const createClientSchema = z.object({
+export const createAccountSchema = z.object({
   name: z.string().trim().min(2).max(120),
   link_id: linkId,
   pin: z.string().regex(/^\d{6}$/, 'PIN must be exactly 6 digits'),

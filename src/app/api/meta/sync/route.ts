@@ -58,7 +58,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   // Insights are generated against whatever campaigns are now stored, so the
   // mock branch stays consistent with the campaign list the dashboard shows.
   const campaigns = await listCampaigns(client_id);
-  const insights = await fetchInsights({ context, clientId: client_id, startDate, endDate, campaigns });
+  const insights = await fetchInsights({ context, accountId: client_id, startDate, endDate, campaigns });
   const recordsUpdated = insights.length > 0 ? await upsertInsights(client_id, insights) : 0;
 
   const syncedAt = new Date().toISOString();

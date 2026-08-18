@@ -20,19 +20,19 @@ const STATUS_STYLES: Record<ManualEntryStatus, { label: string; className: strin
 };
 
 export default function EntryHistory({
-  clientId,
+  accountId,
   refreshKey = 0,
   campaignNames = {},
 }: {
-  clientId: string;
+  accountId: string;
   refreshKey?: number;
   campaignNames?: Record<string, string>;
 }) {
   // approved_only=false so submitters can follow the review status of what
   // they filed — the API still scopes the rows to this client.
   const { items, loading, error, refetch } = useFirestoreList<ManualEntry>(
-    `${API.manualEntry.list(clientId)}?approved_only=false`,
-    [clientId, refreshKey],
+    `${API.manualEntry.list(accountId)}?approved_only=false`,
+    [accountId, refreshKey],
   );
 
   if (error) return <ErrorState message={error} onRetry={refetch} />;

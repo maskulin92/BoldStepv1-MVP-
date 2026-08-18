@@ -5,14 +5,14 @@ import { isValidDateKey, paginate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-type Context = { params: Promise<{ clientId: string }> };
+type Context = { params: Promise<{ accountId: string }> };
 
-/** GET /api/manual-entry/[clientId]?date=&startDate=&endDate= */
+/** GET /api/manual-entry/[accountId]?date=&startDate=&endDate= */
 export const GET = withErrorHandling(async (request: Request, context: Context) => {
-  const { clientId } = await context.params;
+  const { accountId } = await context.params;
   const caller = await requireCaller(request);
   enforceRateLimit(request, caller);
-  assertClientAccess(caller, clientId);
+  assertClientAccess(caller, accountId);
 
   const url = new URL(request.url);
   const date = url.searchParams.get('date');
@@ -24,7 +24,7 @@ export const GET = withErrorHandling(async (request: Request, context: Context) 
   // status=pending_approval to list the review queue across a client.
   const wantsAll = url.searchParams.get('approved_only') === 'false';
 
-  const entries = await listManualEntries(clientId, {
+  const entries = await listManualEntries(accountId, {
     date: isValidDateKey(date) ? date : undefined,
     startDate: isValidDateKey(startDate) ? startDate : undefined,
     endDate: isValidDateKey(endDate) ? endDate : undefined,
