@@ -1,6 +1,12 @@
 export type ActionModel = 'glm' | 'claude';
 
-export type ActionType = 'pause' | 'resume' | 'budget_change' | 'analysis';
+export type ActionType =
+  | 'pause'
+  | 'resume'
+  | 'budget_change'
+  | 'analysis'
+  | 'rotate'
+  | 'optimize';
 
 export type ActionStatus = 'pending' | 'approved' | 'rejected' | 'executed' | 'failed';
 
@@ -28,6 +34,8 @@ export interface PendingAction {
   suggestion_text: string;
   reason: string;
   metadata: ActionMetadata;
+  /** 0–100, how sure the agent is that this suggestion is worth acting on. */
+  confidence?: number;
   status: ActionStatus;
   fadhil_decision: string;
   created_at: string;
@@ -59,6 +67,8 @@ export interface HermesApprovalLog {
   reason: string;
   outcome: string;
   timestamp: string;
+  /** The suggestion type behind this decision — powers preference learning. */
+  action_type?: ActionType;
 }
 
 export type HermesFrequency = '6h' | '12h' | '24h';

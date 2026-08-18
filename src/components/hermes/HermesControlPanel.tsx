@@ -6,6 +6,7 @@ import HermesChat from './HermesChat';
 import HermesSettings from './HermesSettings';
 import MemoryViewer from './MemoryViewer';
 import PendingApprovals from './PendingApprovals';
+import RunNowButton from './RunNowButton';
 import { cn } from '@/lib/utils';
 import type { PublicClient } from '@/types';
 
@@ -76,7 +77,10 @@ export default function HermesControlPanel({
       ) : tab === 'memory' ? (
         <MemoryViewer />
       ) : (
-        <HermesSettings />
+        <div className="space-y-4">
+          <RunNowButton clients={clients} defaultClientId={defaultClientId} />
+          <HermesSettings />
+        </div>
       )}
     </div>
   );

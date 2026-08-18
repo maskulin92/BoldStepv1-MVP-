@@ -75,6 +75,7 @@ export const POST = withErrorHandling(async (request: Request, context: Context)
       campaign: action.campaign_name,
       reason: action.suggestion_text,
       outcome: decisionNote || 'Rejected by owner — no change applied.',
+      action_type: action.action_type,
       timestamp: decidedAt,
     });
 
@@ -129,6 +130,7 @@ export const POST = withErrorHandling(async (request: Request, context: Context)
     campaign: action.campaign_name,
     reason: action.suggestion_text,
     outcome: result.message,
+    action_type: action.action_type,
     timestamp: decidedAt,
   });
 

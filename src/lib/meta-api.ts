@@ -382,6 +382,12 @@ function buildExecutionPayload(
     case 'analysis':
     default:
       return { note: 'analysis-only, nothing sent to Meta' };
+    case 'rotate':
+      // Rotating a creative is a manual review in Ads Manager for now — the
+      // action records the intent, never auto-swaps creative refs.
+      return { note: 'creative-rotation suggested — review in Ads Manager' };
+    case 'optimize':
+      return { note: 'audience/placement optimization suggested — review in Ads Manager' };
   }
 }
 

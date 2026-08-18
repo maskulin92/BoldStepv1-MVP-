@@ -56,8 +56,11 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
 
   const actionType = String(body.action_type ?? 'analysis');
-  if (!['pause', 'resume', 'budget_change', 'analysis'].includes(actionType)) {
-    throw new ApiError('VALIDATION_ERROR', 'action_type must be pause, resume, budget_change or analysis.');
+  if (!['pause', 'resume', 'budget_change', 'analysis', 'rotate', 'optimize'].includes(actionType)) {
+    throw new ApiError(
+      'VALIDATION_ERROR',
+      'action_type must be pause, resume, budget_change, analysis, rotate or optimize.',
+    );
   }
 
   const action: PendingAction = {
@@ -72,6 +75,10 @@ export const POST = withErrorHandling(async (request: Request) => {
     suggestion_text: String(body.suggestion_text ?? '').slice(0, 500) || 'Untitled suggestion',
     reason: String(body.reason ?? '').slice(0, 2000),
     metadata: (body.metadata as PendingAction['metadata']) ?? {},
+    confidence:
+      typeof body.confidence === 'number'
+        ? Math.max(0, Math.min(100, Math.round(body.confidence)))
+        : undefined,
     status: 'pending',
     fadhil_decision: '',
     created_at: new Date().toISOString(),

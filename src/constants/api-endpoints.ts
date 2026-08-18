@@ -28,6 +28,7 @@ export const API = {
     settings: '/api/hermes/settings',
     memory: '/api/hermes/memory',
     execute: '/api/hermes/execute',
+    run: '/api/hermes/run',
   },
   creatives: {
     upload: '/api/creatives/upload',

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, Clock, PauseCircle, PlayCircle, Sliders, Sparkles, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, PauseCircle, PlayCircle, Sliders, Sparkles, XCircle, Repeat, Target } from 'lucide-react';
 import Modal from '@/components/common/Modal';
 import { EmptyState, ErrorState, InlineNotice } from '@/components/common/States';
 import { LoadingSpinner, Skeleton } from '@/components/common/LoadingSpinner';
@@ -15,6 +15,8 @@ const ACTION_ICONS: Record<ActionType, React.ReactNode> = {
   resume: <PlayCircle className="h-4 w-4" aria-hidden />,
   budget_change: <Sliders className="h-4 w-4" aria-hidden />,
   analysis: <Sparkles className="h-4 w-4" aria-hidden />,
+  rotate: <Repeat className="h-4 w-4" aria-hidden />,
+  optimize: <Target className="h-4 w-4" aria-hidden />,
 };
 
 /**

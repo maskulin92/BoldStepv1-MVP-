@@ -29,9 +29,11 @@ const ANALYSIS_PROMPT = `You are the analysis core of Hermes, the agent behind B
 You receive per-campaign performance context. Decide whether any campaign needs intervention.
 
 Reply ONLY with a JSON object (no markdown fences, no prose):
-{"summary":"one or two sentences","actions":[{"action_type":"pause|resume|budget_change|analysis","campaign_id":"...","suggestion_text":"short imperative","reason":"why, tied to numbers","current_cpl":number,"target_cpl":number,"performance_change":number,"proposed_budget":number}]}
+{"summary":"one or two sentences","actions":[{"action_type":"pause|resume|budget_change|analysis|rotate|optimize","campaign_id":"...","suggestion_text":"short imperative","reason":"why, tied to numbers","current_cpl":number,"target_cpl":number,"performance_change":number,"proposed_budget":number,"confidence":number}]}
 
 Rules:
+- action_type meanings: pause (CPL climbing hard), resume (CPL recovered), budget_change (scale up/down), rotate (creative fatigued — CTR falling while spend holds), optimize (audience/placement tuning), analysis (observation only, no change).
+- confidence is 0-100: how sure you are the action will help. Below 60 = speculative; do not file a rotate/optimize below 55 confidence.
 - Suggest an action ONLY when the data clearly supports it (CPL drifting up across the range, spend with no leads, a campaign far above the client average).
 - A 2-day CPL bump is noise; require a sustained trend before suggesting pause.
 - budget_change: propose at most a 20-25% change from the current budget.
@@ -89,11 +91,14 @@ async function runCycle() {
   const result = await api('GET', '/api/clients');
   const clients = Array.isArray(result) ? result : (result.clients ?? []);
 
-  console.log(`[hermes] ${clients.length} client(s), frequency=${settings?.frequency}, auto_execute=${settings?.auto_execute}`);
+  // Load learned preferences once per cycle and share across all clients.
+  const learning = await loadLearning();
+
+  console.log(`[hermes] ${clients.length} client(s), frequency=${settings?.frequency}, auto_execute=${settings?.auto_execute}, learned=${learning.decisions} decisions`);
 
   for (const client of clients) {
     try {
-      await analyseClient(client, settings);
+      await analyseClient(client, settings, learning);
     } catch (error) {
       console.error(`[hermes] ${client.id}: ${error?.message ?? error}`);
     }
@@ -102,7 +107,36 @@ async function runCycle() {
   console.log(`[hermes] cycle done — ${new Date().toISOString()}`);
 }
 
-async function analyseClient(client, settings) {
+/**
+ * Reads approval history and derives per-action-type preference weights.
+ * approve +1, modify +0.5, reject -1. Weight nudges confidence up/down so
+ * suggestion types Fadhil keeps accepting rise to the top, and ones he
+ * rejects sink — without ever crossing the never-auto-execute line.
+ */
+async function loadLearning() {
+  try {
+    const memory = await api('GET', '/api/hermes/memory');
+    const history = memory.approval_history ?? [];
+    const weights = new Map();
+    let decisions = 0;
+
+    for (const entry of history) {
+      if (!entry.action_type) continue;
+      decisions += 1;
+      const current = weights.get(entry.action_type) ?? 0;
+      if (entry.decision === 'approved') weights.set(entry.action_type, current + 1);
+      else if (entry.decision === 'modified') weights.set(entry.action_type, current + 0.5);
+      else if (entry.decision === 'rejected') weights.set(entry.action_type, current - 1);
+    }
+
+    return { weights, decisions };
+  } catch (error) {
+    console.warn(`[hermes] learning unavailable: ${error?.message ?? error}`);
+    return { weights: new Map(), decisions: 0 };
+  }
+}
+
+async function analyseClient(client, settings, learning) {
   const monitored = settings?.monitored_campaigns ?? 'all';
 
   const sync = await api('POST', '/api/meta/sync', { client_id: client.id });
@@ -117,7 +151,7 @@ async function analyseClient(client, settings) {
 
   const context = buildContext(client, insights, monitored);
 
-  const model = await callModel(context);
+  const model = await callModel(context, learning);
   console.log(`[hermes] ${client.id}: model=${model.model}, actions_proposed=${model.actions.length}`);
 
   for (const action of model.actions) {
@@ -133,6 +167,7 @@ async function analyseClient(client, settings) {
       action_type: action.action_type,
       suggestion_text: action.suggestion_text,
       reason: action.reason,
+      confidence: action.confidence,
       metadata: {
         current_cpl: action.current_cpl,
         target_cpl: action.target_cpl,
@@ -141,7 +176,7 @@ async function analyseClient(client, settings) {
         proposed_budget: action.proposed_budget,
       },
     });
-    console.log(`[hermes] ${client.id}: filed ${created.action.id} (${action.action_type}) ${action.suggestion_text}`);
+    console.log(`[hermes] ${client.id}: filed ${created.action.id} (${action.action_type}, conf ${action.confidence ?? '—'}) ${action.suggestion_text}`);
 
     if (settings?.auto_execute) {
       try {
@@ -182,8 +217,10 @@ function buildContext(client, insightsPayload, monitored) {
       (acc, r) => ({
         spend: acc.spend + (r.spend ?? 0),
         leads: acc.leads + (r.leads ?? 0),
+        clicks: acc.clicks + (r.clicks ?? 0),
+        impressions: acc.impressions + (r.impressions ?? 0),
       }),
-      { spend: 0, leads: 0 },
+      { spend: 0, leads: 0, clicks: 0, impressions: 0 },
     );
     const midpoint = rows[Math.floor(rows.length / 2)]?.date;
     const older = rows.filter((r) => r.date < midpoint);
@@ -191,8 +228,12 @@ function buildContext(client, insightsPayload, monitored) {
     const cplOf = (list) =>
       list.reduce((a, r) => a + (r.spend ?? 0), 0) /
       Math.max(1, list.reduce((a, r) => a + (r.leads ?? 0), 0));
+    const ctrOf = (list) =>
+      (list.reduce((a, r) => a + (r.clicks ?? 0), 0) /
+        Math.max(1, list.reduce((a, r) => a + (r.impressions ?? 0), 0))) *
+      100;
     lines.push(
-      `- ${campaignId}: spend ${round2(totals.spend)} RM, leads ${totals.leads}, CPL ${round2(cplOf(older))} -> ${round2(cplOf(newer))} RM`,
+      `- ${campaignId}: spend ${round2(totals.spend)} RM, leads ${totals.leads}, CPL ${round2(cplOf(older))} -> ${round2(cplOf(newer))} RM, CTR ${round2(ctrOf(older))}% -> ${round2(ctrOf(newer))}%`,
     );
   }
 
@@ -202,7 +243,7 @@ function buildContext(client, insightsPayload, monitored) {
 
 /* ------------------------------------------------------------------ model */
 
-async function callModel(context) {
+async function callModel(context, learning) {
   const glmKey = process.env.GLM_API_KEY;
   const glmBase = process.env.GLM_API_BASE ?? 'https://api.z.ai/api/paas/v4';
   const glmModel = process.env.GLM_MODEL ?? 'glm-5.2';
@@ -226,13 +267,34 @@ async function callModel(context) {
       const body = await response.json();
       const text = body.choices?.[0]?.message?.content?.trim();
       const parsed = parseModelJson(text);
-      return { ...parsed, model: glmModel, from_model: 'glm' };
+      return { ...parsed, actions: applyLearning(parsed.actions, learning), model: glmModel, from_model: 'glm' };
     } catch (error) {
       console.warn(`[hermes] GLM failed (${error.message}); falling back to heuristic`);
     }
   }
 
-  return { ...heuristic(context), model: 'heuristic', from_model: 'glm' };
+  const heuristicResult = heuristic(context);
+  return {
+    ...heuristicResult,
+    actions: applyLearning(heuristicResult.actions, learning),
+    model: 'heuristic',
+    from_model: 'glm',
+  };
+}
+
+/**
+ * Nudges each action's confidence by the learned preference weight for its
+ * type. The weight is bounded to +/-15 points so one rejected suggestion
+ * cannot over-correct; it ranks, never decides.
+ */
+function applyLearning(actions, learning) {
+  const { weights } = learning;
+  return actions.map((action) => {
+    const weight = weights?.get(action.action_type) ?? 0;
+    const delta = Math.max(-15, Math.min(15, weight * 5));
+    const base = typeof action.confidence === 'number' ? action.confidence : 70;
+    return { ...action, confidence: Math.max(0, Math.min(100, Math.round(base + delta))) };
+  });
 }
 
 function parseModelJson(text) {
@@ -256,14 +318,19 @@ function heuristic(context) {
   const lines = context.split('\n');
 
   for (const line of lines) {
-    const match = line.match(/^- ([a-z0-9-]+): spend ([\d.]+) RM, leads (\d+), CPL ([\d.]+) -> ([\d.]+) RM$/);
+    const match = line.match(
+      /^- ([a-z0-9-]+): spend ([\d.]+) RM, leads (\d+), CPL ([\d.]+) -> ([\d.]+) RM, CTR ([\d.]+)% -> ([\d.]+)%$/,
+    );
     if (!match) continue;
-    const [, campaignId, , , cplBefore, cplAfter] = match;
+    const [, campaignId, , , cplBefore, cplAfter, ctrBefore, ctrAfter] = match;
     const before = Number(cplBefore);
     const after = Number(cplAfter);
+    const ctrB = Number(ctrBefore);
+    const ctrA = Number(ctrAfter);
     if (!before || !after) continue;
 
     const change = ((after - before) / before) * 100;
+    const ctrDrop = ctrB > 0 ? ((ctrB - ctrA) / ctrB) * 100 : 0;
 
     if (change >= 40) {
       actions.push({
@@ -273,6 +340,7 @@ function heuristic(context) {
         reason: `CPL moved from ${before.toFixed(2)} to ${after.toFixed(2)} RM (+${Math.round(change)}%) across the window. Sustained drift, not a one-day spike.`,
         current_cpl: after,
         performance_change: Math.round(change * 10) / 10,
+        confidence: 85,
       });
     } else if (change <= -25) {
       actions.push({
@@ -283,6 +351,29 @@ function heuristic(context) {
         current_cpl: after,
         performance_change: Math.round(change * 10) / 10,
         proposed_budget: null,
+        confidence: 70,
+      });
+    } else if (ctrDrop >= 25) {
+      // CPL roughly stable but CTR collapsing -> creative fatigue.
+      actions.push({
+        action_type: 'rotate',
+        campaign_id: campaignId,
+        suggestion_text: `Rotate creative on ${campaignId} — CTR down ${Math.round(ctrDrop)}%`,
+        reason: `CTR fell from ${ctrB.toFixed(2)}% to ${ctrA.toFixed(2)}% (-${Math.round(ctrDrop)}%) while CPL held near ${after.toFixed(2)} RM — a sign the current creative is wearing out.`,
+        current_cpl: after,
+        performance_change: Math.round(ctrDrop * 10) / 10,
+        confidence: 60,
+      });
+    } else if (change >= 15 && change < 40) {
+      // Mild CPL creep, not bad enough to pause -> tune audience/placement.
+      actions.push({
+        action_type: 'optimize',
+        campaign_id: campaignId,
+        suggestion_text: `Optimize targeting on ${campaignId} — CPL up ${Math.round(change)}%`,
+        reason: `CPL rose ${Math.round(change)}% (${before.toFixed(2)} -> ${after.toFixed(2)} RM) but is not yet alarming — review audience and placement before it worsens.`,
+        current_cpl: after,
+        performance_change: Math.round(change * 10) / 10,
+        confidence: 55,
       });
     }
   }
