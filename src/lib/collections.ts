@@ -15,6 +15,8 @@ export const COLLECTIONS = {
   hermesMemory: 'hermes_memory',
   /** Per-link PIN attempt counters — one document per client link. */
   pinAttempts: 'pin_attempts',
+  /** Operational audit trail (meta syncs, admin actions). */
+  auditLog: 'audit_log',
 
   campaigns: 'campaigns',
   campaignItems: 'campaign_items',

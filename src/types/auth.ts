@@ -41,6 +41,20 @@ export interface ApiKeyRecord {
 
 export type PublicApiKey = Omit<ApiKeyRecord, 'key_hash'>;
 
+/** `audit_log/{entryId}` — operational audit trail (meta syncs, admin actions). */
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  actor: string;
+  timestamp: string;
+  sync_status?: 'success' | 'partial' | 'failed';
+  campaign_count?: number;
+  meta_response_time_ms?: number;
+  client_id?: string;
+  mode?: 'live' | 'mock';
+  detail?: string;
+}
+
 export type WebhookEvent =
   | 'insight.synced'
   | 'action.created'

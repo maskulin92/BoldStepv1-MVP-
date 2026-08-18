@@ -16,6 +16,7 @@ import {
 import type {
   AdSet,
   ApiKeyRecord,
+  AuditLogEntry,
   AuthUser,
   Campaign,
   Client,
@@ -52,6 +53,8 @@ export interface MockStore {
   authUsers: AuthUser[];
   apiKeys: ApiKeyRecord[];
   webhooks: Webhook[];
+  /** Operational audit trail (meta syncs, admin actions). */
+  auditLog: AuditLogEntry[];
   /** Raw bytes for creatives uploaded during this session. */
   files: Map<string, { buffer: Buffer; contentType: string }>;
 }
@@ -77,6 +80,7 @@ function seed(): MockStore {
     authUsers: [{ ...owner, permissions: [...owner.permissions] }],
     apiKeys: [],
     webhooks: [],
+    auditLog: [],
     files: new Map(),
   };
 }

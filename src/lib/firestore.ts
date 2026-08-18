@@ -7,6 +7,7 @@ import { env } from './env';
 import type {
   AdSet,
   ApiKeyRecord,
+  AuditLogEntry,
   AuthUser,
   Campaign,
   Client,
@@ -1040,4 +1041,43 @@ function toDecision(state: PinAttemptState): PinAttemptDecision {
     locked_until: locked ? state.locked_until : undefined,
     retry_after_seconds: locked ? Math.ceil((lockedUntil - Date.now()) / 1000) : 0,
   };
+}
+
+/* ----------------------------------------------------------- audit log */
+
+/**
+ * Best-effort audit trail: a logging failure must never fail the operation
+ * being audited, so every write is wrapped and warned, never thrown.
+ */
+export async function recordAuditLog(entry: Omit<AuditLogEntry, 'id' | 'timestamp'> & { id?: string; timestamp?: string }): Promise<void> {
+  const record: AuditLogEntry = {
+    id: entry.id ?? `log-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: entry.timestamp ?? new Date().toISOString(),
+    ...entry,
+  };
+
+  const db = getDb();
+  if (!db) {
+    mockStore().auditLog.unshift(record);
+    return;
+  }
+  try {
+    await db.collection(COLLECTIONS.auditLog).doc(record.id).set(clean(record as unknown as Doc));
+  } catch (error) {
+    console.warn(
+      `[boldstep:audit] write failed: ${error instanceof Error ? error.message : error}`,
+    );
+  }
+}
+
+export async function listAuditLog(limit = 50): Promise<AuditLogEntry[]> {
+  const db = getDb();
+  if (!db) return mockStore().auditLog.slice(0, limit);
+
+  const snapshot = await db
+    .collection(COLLECTIONS.auditLog)
+    .orderBy('timestamp', 'desc')
+    .limit(limit)
+    .get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<AuditLogEntry, 'id'>) }));
 }

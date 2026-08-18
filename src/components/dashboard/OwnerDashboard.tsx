@@ -10,6 +10,7 @@ import AccountDashboard from './AccountDashboard';
 import AccountFormModal from './AccountFormModal';
 import AccountManageBar from './AccountManageBar';
 import CampaignFormModal from './CampaignFormModal';
+import SyncMetaButton from './SyncMetaButton';
 import DateRangeSelector from './DateRangeSelector';
 import OverviewCards from './OverviewCards';
 import TrendChart from '@/components/reports/TrendChart';
@@ -144,6 +145,7 @@ export default function OwnerDashboard({ mockMode }: { mockMode: boolean }) {
               onAdd={() => setClientForm('new')}
               onEdit={() => activeClient && setClientForm(activeClient)}
               onNewCampaign={() => setCampaignFormOpen(true)}
+              onSynced={() => void clients.refetch()}
               onDeleted={(deletedId) => {
                 // Fall back to whichever client is left after the removal.
                 const remaining = managedClients.filter((c) => c.id !== deletedId);
@@ -211,12 +213,14 @@ function SectionA({
   onAdd,
   onEdit,
   onNewCampaign,
+  onSynced,
   onDeleted,
 }: {
   client: PublicClient | null;
   onAdd: () => void;
   onEdit: () => void;
   onNewCampaign: () => void;
+  onSynced: () => void;
   onDeleted: (accountId: string) => void;
 }) {
   if (!client) {
@@ -241,10 +245,13 @@ function SectionA({
         onEdit={onEdit}
         onDeleted={onDeleted}
         extra={
-          <button type="button" className="btn-secondary" onClick={onNewCampaign}>
-            <Megaphone className="h-4 w-4" aria-hidden />
-            New campaign
-          </button>
+          <>
+            <SyncMetaButton accountId={client.id} onSynced={onSynced} />
+            <button type="button" className="btn-secondary" onClick={onNewCampaign}>
+              <Megaphone className="h-4 w-4" aria-hidden />
+              New campaign
+            </button>
+          </>
         }
       />
       <ReviewQueue accountId={client.id} />

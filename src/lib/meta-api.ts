@@ -52,15 +52,50 @@ async function graphRequest<T>(
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   url.searchParams.set('access_token', accessToken);
 
-  const response = await fetch(url, { cache: 'no-store' });
-  const body = (await response.json()) as T & { error?: { message?: string; code?: number } };
+  // Exponential backoff on rate-limit (HTTP 429 / code 4 / code 17) and
+  // transient 5xx: 1s, 2s, 4s — then give up and surface the error.
+  const MAX_ATTEMPTS = 3;
+  let lastError: Error | null = null;
 
-  if (!response.ok || body?.error) {
-    throw new Error(
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(url, { cache: 'no-store' });
+    } catch (error) {
+      // Network failure: transient by nature, retry.
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(2 ** (attempt - 1) * 1000);
+        continue;
+      }
+      throw lastError;
+    }
+
+    const body = (await response.json().catch(() => ({}))) as T & {
+      error?: { message?: string; code?: number };
+    };
+
+    if (response.ok && !body?.error) return body;
+
+    const code = body?.error?.code;
+    const rateLimited = response.status === 429 || code === 4 || code === 17 || code === 32;
+    const transient = response.status >= 500;
+    lastError = new Error(
       `Meta Graph API error (${response.status}): ${body?.error?.message ?? 'unknown error'}`,
     );
+
+    if ((rateLimited || transient) && attempt < MAX_ATTEMPTS) {
+      await sleep(2 ** (attempt - 1) * 1000);
+      continue;
+    }
+    throw lastError;
   }
-  return body;
+
+  throw lastError ?? new Error('Meta Graph API request failed');
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /* --------------------------------------------------------- campaigns */
