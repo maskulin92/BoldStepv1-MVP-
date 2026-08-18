@@ -233,6 +233,8 @@ interface MetaInsightRow {
   spend?: string;
   impressions?: string;
   clicks?: string;
+  /** Objective-optimised result count — the "Results" column in Ads Manager. */
+  results?: string;
   actions?: { action_type: string; value: string }[];
 }
 
@@ -261,18 +263,24 @@ export async function fetchInsights(options: {
       level: 'campaign',
       time_increment: '1',
       time_range: JSON.stringify({ since: startDate, until: endDate }),
-      fields: 'campaign_id,campaign_name,spend,impressions,clicks,actions',
+      fields: 'campaign_id,campaign_name,spend,impressions,clicks,results,actions',
       limit: '500',
     },
   );
 
   const now = new Date().toISOString();
   return body.data.map((row) => {
+    // "Results" is the objective-optimised count shown in Ads Manager — for a
+    // Leads objective that is the lead count. Using it (rather than guessing
+    // from the actions[] action_type strings) keeps leads exactly aligned
+    // with the number Fadhil sees in Ads Manager. Fall back to the actions
+    // tally only when results is absent (e.g. a metric Meta didn't return).
+    const results = Number(row.results ?? 0);
     const totals = {
       spend: Number(row.spend ?? 0),
       impressions: Number(row.impressions ?? 0),
       clicks: Number(row.clicks ?? 0),
-      leads: countAction(row.actions, ['lead', 'onsite_conversion.lead_grouped']),
+      leads: results > 0 ? results : countAction(row.actions, ['lead', 'onsite_conversion.lead_grouped']),
       conversions: countAction(row.actions, ['purchase', 'offsite_conversion.fb_pixel_purchase']),
     };
     return {
