@@ -261,6 +261,11 @@ export default function AccountFormModal({
               placeholder="act_123456789"
               className="w-full"
             />
+            <p className="mt-1 text-xs text-cream-100/40">
+              Either <span className="font-mono">act_123456789</span> or{' '}
+              <span className="font-mono">123456789</span> — the <span className="font-mono">act_</span>{' '}
+              prefix is added automatically.
+            </p>
           </div>
         </div>
 

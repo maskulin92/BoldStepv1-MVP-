@@ -41,21 +41,38 @@ function isPlaceholder(value: string | null | undefined): boolean {
 }
 
 /**
+ * Meta accepts an ad account id both as `act_123456789` and as the bare
+ * numeric `123456789`. Graph edges (`/campaigns`, `/adsets`, `/insights`)
+ * only work against the `act_`-prefixed node — a bare id makes Meta parse it
+ * as a generic node and report "Tried accessing nonexisting field (…)".
+ * Normalise once here so every downstream caller is guaranteed a valid id.
+ */
+function normalizeAdAccountId(value: string): string {
+  const trimmed = value.trim().replace(/^act_/i, '');
+  return `act_${trimmed}`;
+}
+
+/**
  * The dashboard is the single source of truth for Meta tokens: the token is
  * read from the account's encrypted Firestore field, nothing else. There is
  * no .env.local token fallback — Fadhil sets it once in the dashboard.
  *
  * The ad account id is also per-account first, with .env.local as a shared
- * default (an id is not a secret), but placeholders are ignored.
+ * default (an id is not a secret), but placeholders are ignored and the
+ * `act_` prefix is normalised on.
  */
 export function resolveMetaContext(client?: Client | null): MetaCallContext {
   const clientToken = client?.access_token_encrypted
     ? decryptToken(client.access_token_encrypted)
     : null;
-  const adAccountId = client?.ad_account_id ?? env.meta.adAccountId ?? null;
+  const rawAdAccountId = client?.ad_account_id ?? env.meta.adAccountId ?? null;
+  const adAccountId =
+    rawAdAccountId && !isPlaceholder(rawAdAccountId)
+      ? normalizeAdAccountId(rawAdAccountId)
+      : null;
   return {
     accessToken: isPlaceholder(clientToken) ? null : clientToken,
-    adAccountId: isPlaceholder(adAccountId) ? null : adAccountId,
+    adAccountId,
   };
 }
 
