@@ -235,24 +235,32 @@ interface MetaInsightRow {
   clicks?: string;
   /**
    * Objective-optimised result count — the "Results" column in Ads Manager.
-   * Two formats depending on API version/params:
-   *   - plain string: "65"
-   *   - indicator array (v18+ with attribution windows):
-   *     [{"indicator":"actions","value":"[{\"action_type\":…,\"value\":\"65\"}]"}]
+   * Two observed shapes:
+   *   - plain string: "65" (older API)
+   *   - indicator array (confirmed from live Graph v21 response):
+   *     [{
+   *       "indicator": "actions:onsite_conversion.messaging_conversation_started_7d",
+   *       "values": [
+   *         { "value": "10", "attribution_windows": ["7d_click"] },
+   *         { "value": "10", "attribution_windows": ["default"] }
+   *       ]
+   *     }]
+   *     Note: `values` (plural) carries the SAME count under multiple
+   *     attribution windows — only one must be taken, or the total doubles.
    */
-  results?: string | { indicator?: string; value?: string }[];
+  results?: string | { indicator?: string; values?: { value?: string; attribution_windows?: string[] }[] }[];
   actions?: { action_type: string; value: string }[];
 }
 
 /**
  * Extracts the result count from either `results` shape.
  *
- * - Plain numeric string → Number() directly.
- * - Indicator array → sum every numeric `value`; when a value is itself a
- *   stringified JSON array of actions (the newer breakdown format), parse it
- *   and sum the action values inside. Meta only includes result-relevant
- *   indicators in this field, so the total matches Ads Manager's Results
- *   column.
+ * - Plain numeric string → direct conversion.
+ * - Indicator array → per indicator, take ONE attribution value (prefer
+ *   "default"; fall back to the first entry) — summing every window would
+ *   double-count the same conversions.
+ * Returns 0 when nothing parseable is found; the caller falls back to the
+ * actions tally.
  */
 function extractResultsCount(results: MetaInsightRow['results']): number {
   if (results == null) return 0;
@@ -266,30 +274,13 @@ function extractResultsCount(results: MetaInsightRow['results']): number {
 
   let total = 0;
   for (const entry of results) {
-    if (!entry || typeof entry.value !== 'string') continue;
-    const raw = entry.value.trim();
+    if (!entry || !Array.isArray(entry.values) || entry.values.length === 0) continue;
 
-    if (/^\d+(\.\d+)?$/.test(raw)) {
-      total += Number(raw);
-      continue;
-    }
-
-    // Stringified JSON array of actions — parse and sum the values.
-    if (raw.startsWith('[')) {
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          for (const action of parsed) {
-            if (action && typeof action === 'object' && 'value' in action) {
-              const v = Number((action as { value: unknown }).value);
-              if (Number.isFinite(v)) total += v;
-            }
-          }
-        }
-      } catch {
-        // Malformed inner JSON — skip, the actions fallback still applies.
-      }
-    }
+    // Prefer the default-attribution value; otherwise the first window.
+    const pick =
+      entry.values.find((v) => v.attribution_windows?.includes('default')) ?? entry.values[0];
+    const n = Number(pick?.value ?? NaN);
+    if (Number.isFinite(n)) total += n;
   }
   return total;
 }
