@@ -264,9 +264,17 @@ export async function fetchInsights(options: {
       time_increment: '1',
       time_range: JSON.stringify({ since: startDate, until: endDate }),
       fields: 'campaign_id,campaign_name,spend,impressions,clicks,results,actions',
+      // A generous attribution window mirrors Ads Manager's default view.
+      action_attribution_windows: JSON.stringify(['7d_click', '1d_view']),
       limit: '500',
     },
   );
+
+  // Temporary diagnostic — dump the raw shape for the first row(s) so the
+  // results-vs-actions mismatch can be resolved against real data.
+  if (body.data.length > 0) {
+    console.log('[boldstep:meta:insights] RAW row sample:', JSON.stringify(body.data[0]));
+  }
 
   const now = new Date().toISOString();
   return body.data.map((row) => {
