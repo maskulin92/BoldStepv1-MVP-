@@ -47,5 +47,14 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "//": "getPendingAction() runs collectionGroup('action_items').where('id','==',x) with no orderBy, so it sorts by __name__ and needs a single-field collection-group index on id (not the composite above).",
+      "collectionGroup": "action_items",
+      "fieldPath": "id",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
 }
