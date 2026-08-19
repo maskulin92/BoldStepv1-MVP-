@@ -63,6 +63,22 @@ export const POST = withErrorHandling(async (request: Request) => {
     );
   }
 
+  // Dedupe: if a PENDING action for this campaign + type already exists (a
+  // retry, a double-click, or the agent re-running a cycle), return it instead
+  // of piling another identical copy on top. Idempotency lives here so every
+  // caller (Run Now, the scheduled agent, integrations) is covered.
+  const existing = await listPendingActions({ accountId, status: 'pending' });
+  const duplicate = existing.find(
+    (a) => a.campaign_id === campaignId && a.action_type === actionType,
+  );
+  if (duplicate) {
+    return created({
+      action: duplicate,
+      duplicate: true,
+      notification: { sent: false, mode: 'mock' as const },
+    });
+  }
+
   const action: PendingAction = {
     id: `act-${randomUUID().slice(0, 8)}`,
     client_id: accountId,

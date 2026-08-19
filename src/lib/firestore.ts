@@ -261,6 +261,11 @@ export async function getCampaign(accountId: string, campaignId: string): Promis
     );
   }
 
+  // A campaign id carrying a `/` (e.g. a campaign NAME slipped in as an id)
+  // would make `.doc()` throw "documentPath must point to a document". Treat
+  // that as "not found" so callers can skip instead of 500ing.
+  if (!campaignId || campaignId.includes('/')) return null;
+
   const doc = await db
     .collection(COLLECTIONS.campaigns)
     .doc(accountId)
