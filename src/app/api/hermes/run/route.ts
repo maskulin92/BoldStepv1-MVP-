@@ -4,8 +4,7 @@ import { getClient, listCampaigns, listInsights, listPendingActions } from '@/li
 import { buildAnalysisContext } from '@/lib/glm-client';
 import { runAnalysis } from '@/lib/hermes-analysis';
 import { defaultDateRange } from '@/lib/utils';
-import { notifyPendingAction } from '@/lib/telegram';
-import { createPendingAction } from '@/lib/firestore';
+import { filePendingAction } from '@/lib/approval-service';
 import { randomUUID } from 'node:crypto';
 import type { PendingAction } from '@/types';
 
@@ -17,8 +16,9 @@ export const maxDuration = 60;
  *
  * "Run Now" — immediate analysis for one client, bypassing the schedule.
  * Syncs the client, builds context, asks the model (or heuristic), and files
- * suggestions through the same POST /api/approvals path the scheduled agent
- * uses. Draft-only: never auto-executes.
+ * suggestions through the shared filePendingAction() service — the same path
+ * POST /api/approvals uses — so dedupe, notifications and webhooks are
+ * consistent across every caller. Draft-only: never auto-executes.
  */
 export const POST = withErrorHandling(async (request: Request) => {
   const caller = await requireOwner(request);
@@ -34,19 +34,10 @@ export const POST = withErrorHandling(async (request: Request) => {
   if (!client) throw new ApiError('INVALID_CLIENT_ID', `No client with id "${client_id}".`);
 
   const range = defaultDateRange(14);
-  const [campaigns, insights, existingActions] = await Promise.all([
+  const [campaigns, insights] = await Promise.all([
     listCampaigns(client_id),
     listInsights(client_id, range.start, range.end),
-    listPendingActions({ accountId: client_id }),
   ]);
-
-  // Dedupe key: a pending action for the same campaign + type already exists —
-  // re-running "Run Now" must not pile another identical copy on top.
-  const alreadyPending = new Set(
-    existingActions
-      .filter((a) => a.status === 'pending')
-      .map((a) => `${a.campaign_id}|${a.action_type}`),
-  );
 
   // The model is only given campaign names (not ids) in the context, so it may
   // return a name instead of an id. Resolve both forms to a real campaign id.
@@ -66,9 +57,6 @@ export const POST = withErrorHandling(async (request: Request) => {
     onFile: async (suggestion) => {
       const campaign = resolveCampaign(suggestion.campaign_id);
       if (!campaign) return; // unknown campaign — skip, don't 500
-
-      const dedupeKey = `${campaign.id}|${suggestion.action_type}`;
-      if (alreadyPending.has(dedupeKey)) return; // already suggested, skip
 
       const action: PendingAction = {
         id: `act-${randomUUID().slice(0, 8)}`,
@@ -90,13 +78,12 @@ export const POST = withErrorHandling(async (request: Request) => {
         created_at: new Date().toISOString(),
       };
 
-      await createPendingAction(action);
-      alreadyPending.add(dedupeKey); // within this run, avoid re-filing the same suggestion
-      if (client.settings.notification_enabled) {
-        await notifyPendingAction(action);
-        notificationsSent += 1;
+      // Single shared path: atomic dedupe + create + notify + webhook.
+      const result = await filePendingAction(action, client);
+      if (result.created) {
+        if (result.notification.sent) notificationsSent += 1;
+        filed.push(result.action);
       }
-      filed.push(action);
     },
   });
 

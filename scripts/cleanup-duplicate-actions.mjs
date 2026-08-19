@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 /**
- * Cleanup duplicate pending actions in Firestore.
+ * Cleanup duplicate PENDING actions in Firestore.
  *
  * Hermes (before the dedupe fix in commit 23a033e) could file the same
  * suggestion repeatedly — same campaign + action_type — piling up identical
  * pending approvals. This script removes the extras, keeping the OLDEST one
  * per (campaign_id, action_type) so the original suggestion survives.
+ *
+ * IMPORTANT: Only PENDING actions are de-duplicated. Actions that have already
+ * been decided (executed / rejected) are left untouched — removing a resolved
+ * action would corrupt the audit trail and could delete a newer valid pending
+ * suggestion while keeping an old resolved one.
  *
  * Usage:
  *   node scripts/cleanup-duplicate-actions.mjs            # dry run (default)
@@ -55,9 +60,9 @@ async function main() {
     process.exit(1);
   }
 
-  const admin = await import(
-    'file://C:/Users/Admin/Desktop/Boldstep/BoldStepMvp/BoldStepv1(MVP)/node_modules/firebase-admin/lib/index.js'
-  );
+  // Dynamic import so the script runs on any machine with firebase-admin
+  // installed in the project's node_modules — no hardcoded paths.
+  const admin = await import('firebase-admin');
   const firebase = admin.default ?? admin;
 
   firebase.initializeApp({
@@ -78,6 +83,7 @@ async function main() {
   // 2. For each account, read every action in its action_items subcollection.
   //    (Per-account reads avoid the collectionGroup index dependency.)
   let totalSeen = 0;
+  let totalPending = 0;
   let totalDuplicates = 0;
 
   for (const accountId of accountIds) {
@@ -87,12 +93,19 @@ async function main() {
       .collection(COLLECTIONS.actionItems)
       .get();
 
-    // 3. Group by dedupe key, keep the OLDEST per key.
+    // 3. Group PENDING actions by dedupe key. Resolved actions (executed /
+    //    rejected) are skipped entirely — they are historical and must not
+    //    be deleted, and a resolved action must not "shadow" a newer pending
+    //    suggestion for the same campaign + type.
     const byKey = new Map();
     for (const doc of actionsSnap.docs) {
       const action = doc.data();
       action._docId = doc.id;
       totalSeen += 1;
+
+      if (action.status !== 'pending') continue;
+      totalPending += 1;
+
       const key = dedupeKey(action);
       if (!byKey.has(key)) {
         byKey.set(key, []);
@@ -109,7 +122,7 @@ async function main() {
       totalDuplicates += dupes.length;
 
       console.log(
-        `\nDUPLICATE GROUP (${group.length} copies) — ${key}\n` +
+        `\nDUPLICATE GROUP (${group.length} pending copies) — ${key}\n` +
           `  keep:  ${keep._docId}  (${keep.created_at ?? 'no created_at'})  [${keep.status}]`,
       );
       for (const d of dupes) {
@@ -130,6 +143,7 @@ async function main() {
 
   console.log('\n====================================');
   console.log(`Total actions scanned:      ${totalSeen}`);
+  console.log(`Pending actions scanned:    ${totalPending}`);
   console.log(`Duplicate actions to drop:  ${totalDuplicates}`);
   console.log(APPLY ? 'ACTION: duplicates deleted.' : 'DRY RUN — nothing deleted. Re-run with --apply to delete.');
   console.log('====================================');

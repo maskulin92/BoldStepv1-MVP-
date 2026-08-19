@@ -479,17 +479,16 @@ export async function listPendingActions(options: {
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 
-  const snapshot = accountId
-    ? await db
-        .collection(COLLECTIONS.pendingActions)
-        .doc(accountId)
-        .collection(COLLECTIONS.actionItems)
-        .get()
-    : await db.collectionGroup(COLLECTIONS.actionItems).get();
+  const ref = accountId
+    ? db.collection(COLLECTIONS.pendingActions).doc(accountId).collection(COLLECTIONS.actionItems)
+    : db.collectionGroup(COLLECTIONS.actionItems);
+
+  const snapshot = status
+    ? await ref.where('status', '==', status).get()
+    : await ref.get();
 
   return snapshot.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() as Omit<PendingAction, 'id'>) }))
-    .filter((a) => !status || a.status === status)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
@@ -545,6 +544,71 @@ export async function updatePendingAction(
   await snapshot.docs[0].ref.set(clean(patch as Doc), { merge: true });
   const updated = await snapshot.docs[0].ref.get();
   return { id: updated.id, ...(updated.data() as Omit<PendingAction, 'id'>) };
+}
+
+/**
+ * Atomically find an existing PENDING action for the same campaign + type, or
+ * create a new one. Runs inside a Firestore transaction so two concurrent
+ * callers (the scheduled agent + a "Run Now" click, or two serverless
+ * instances) can never both see "nothing pending" and both create a duplicate.
+ *
+ * The transaction locks the client's action_items collection: it reads every
+ * pending action, checks for a match, and only creates a document when no
+ * match exists. The create is committed atomically with the read, so the
+ * race window that caused 600+ duplicates is closed.
+ *
+ * Returns the action and a `created` flag so callers know whether to fire
+ * notifications/webhooks (only on a genuine create).
+ */
+export async function findOrCreatePendingAction(
+  action: PendingAction,
+): Promise<{ action: PendingAction; created: boolean }> {
+  const db = getDb();
+
+  // Mock branch — no transactions, but keep the same shape.
+  if (!db) {
+    const store = mockStore();
+    const existing = store.actions.find(
+      (a) =>
+        a.client_id === action.client_id &&
+        a.campaign_id === action.campaign_id &&
+        a.action_type === action.action_type &&
+        a.status === 'pending',
+    );
+    if (existing) return { action: existing, created: false };
+    store.actions.unshift(action);
+    return { action, created: true };
+  }
+
+  const parentRef = db.collection(COLLECTIONS.pendingActions).doc(action.client_id);
+  const itemsRef = parentRef.collection(COLLECTIONS.actionItems);
+
+  const result = await db.runTransaction(async (tx) => {
+    // Read within the transaction so the lock is held until commit.
+    const pendingSnap = await tx.get(itemsRef);
+    for (const doc of pendingSnap.docs) {
+      const existing = doc.data() as Omit<PendingAction, 'id'>;
+      if (
+        existing.campaign_id === action.campaign_id &&
+        existing.action_type === action.action_type &&
+        existing.status === 'pending'
+      ) {
+        return { action: { id: doc.id, ...existing } as PendingAction, created: false };
+      }
+    }
+
+    // No match — create. parentRef exists/merge is outside the transaction
+    // (creating a doc inside a tx that also reads a sibling subcollection
+    // is fine; the parent shell doc is touched separately below).
+    const newDocRef = itemsRef.doc(action.id);
+    tx.set(newDocRef, clean(action as unknown as Doc));
+    return { action, created: true };
+  });
+
+  // Ensure the parent shell document exists (for collection-group queries).
+  await parentRef.set({ client_id: action.client_id }, { merge: true });
+
+  return result;
 }
 
 /* ------------------------------------------------------ manual entries */

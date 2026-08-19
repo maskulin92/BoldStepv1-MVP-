@@ -1,10 +1,9 @@
 import { created, list, parseJson, withErrorHandling } from '@/lib/api-response';
 import { enforceRateLimit, requireOwner, requirePermission } from '@/lib/api-auth';
-import { createPendingAction, getClient, getCampaign, listPendingActions } from '@/lib/firestore';
-import { notifyPendingAction } from '@/lib/telegram';
-import { paginate } from '@/lib/utils';
-import { dispatchWebhook } from '@/lib/webhooks';
+import { getClient, getCampaign, listPendingActions } from '@/lib/firestore';
+import { filePendingAction } from '@/lib/approval-service';
 import { ApiError } from '@/lib/api-response';
+import { paginate } from '@/lib/utils';
 import { randomUUID } from 'node:crypto';
 import type { PendingAction } from '@/types';
 
@@ -35,8 +34,9 @@ export const GET = withErrorHandling(async (request: Request) => {
 
 /**
  * POST /api/approvals
- * How Hermes files a suggestion. Creates the action, then fires the Telegram
- * notification that carries the approval link (step 2 of the workflow).
+ * How Hermes files a suggestion. Delegates to the shared filePendingAction()
+ * service so the scheduled agent, Run Now, and direct API calls all share one
+ * dedupe + create + notify + webhook path (single source of truth).
  */
 export const POST = withErrorHandling(async (request: Request) => {
   const caller = await requireOwner(request);
@@ -63,22 +63,6 @@ export const POST = withErrorHandling(async (request: Request) => {
     );
   }
 
-  // Dedupe: if a PENDING action for this campaign + type already exists (a
-  // retry, a double-click, or the agent re-running a cycle), return it instead
-  // of piling another identical copy on top. Idempotency lives here so every
-  // caller (Run Now, the scheduled agent, integrations) is covered.
-  const existing = await listPendingActions({ accountId, status: 'pending' });
-  const duplicate = existing.find(
-    (a) => a.campaign_id === campaignId && a.action_type === actionType,
-  );
-  if (duplicate) {
-    return created({
-      action: duplicate,
-      duplicate: true,
-      notification: { sent: false, mode: 'mock' as const },
-    });
-  }
-
   const action: PendingAction = {
     id: `act-${randomUUID().slice(0, 8)}`,
     client_id: accountId,
@@ -100,13 +84,11 @@ export const POST = withErrorHandling(async (request: Request) => {
     created_at: new Date().toISOString(),
   };
 
-  await createPendingAction(action);
+  const result = await filePendingAction(action, client);
 
-  const notification = client.settings.notification_enabled
-    ? await notifyPendingAction(action)
-    : { sent: false, mode: 'mock' as const, message: 'notifications disabled for this client' };
-
-  void dispatchWebhook('action.created', action);
-
-  return created({ action, notification: { sent: notification.sent, mode: notification.mode } });
+  return created({
+    action: result.action,
+    duplicate: !result.created,
+    notification: result.notification,
+  });
 });

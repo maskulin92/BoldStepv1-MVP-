@@ -64,7 +64,18 @@ async function main() {
     } catch (error) {
       console.error('[hermes] cycle failed:', error?.message ?? error);
     }
-    const nextMs = intervalMs();
+    // intervalMs() can throw if the settings API is unreachable and the
+    // internal try-catch is bypassed (e.g. network error before catch).
+    // Without this guard the agent would stop scheduling — silently die —
+    // because setTimeout(tick, undefined) never fires. Fall back to 24h
+    // so the agent always schedules its next attempt.
+    let nextMs;
+    try {
+      nextMs = await intervalMs();
+    } catch (error) {
+      console.warn(`[hermes] interval lookup failed: ${error?.message ?? error}, defaulting to 24h`);
+      nextMs = 24 * 3_600_000;
+    }
     console.log(`[hermes] next cycle in ${Math.round(nextMs / 3_600_000 * 10) / 10}h`);
     timer = setTimeout(tick, nextMs);
     timer.unref?.();
@@ -278,7 +289,7 @@ async function callModel(context, learning) {
     ...heuristicResult,
     actions: applyLearning(heuristicResult.actions, learning),
     model: 'heuristic',
-    from_model: 'glm',
+    from_model: 'heuristic',
   };
 }
 
